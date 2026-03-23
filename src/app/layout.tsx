@@ -4,7 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Prime Cut Studio",
   description:
-    "Site de barbearia com apresentacao institucional e base para sistema de agendamento online.",
+    "Barbearia premium com atendimento por agendamento, serviços de corte e barba e presença digital profissional.",
 };
 
 export default function RootLayout({

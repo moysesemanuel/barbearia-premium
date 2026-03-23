@@ -1,44 +1,79 @@
 # Barbershop Booking System
 
-Projeto em desenvolvimento para portfólio e futuros freelas: um site de barbearia com página institucional, catálogo de serviços e sistema de agendamento online.
+Sistema web para barbearia com site institucional, agendamento online e backoffice administrativo.
 
-## Objetivo
+## Visão geral
 
-Construir uma aplicação full stack com foco em:
+Este projeto foi construído como case de portfólio com foco em serviços reais para pequenos negócios. A aplicação combina uma landing page comercial com fluxo de agendamento e um painel de administração para gestão do conteúdo e da agenda.
 
-- presença digital profissional para uma barbearia
-- agendamento online com horários atualizados automaticamente
-- organização de código e versionamento para portfólio no GitHub
-- evolução futura para painel administrativo
+## Funcionalidades
+
+- home institucional com hero, serviços, galeria e contato
+- agendamento online por serviço, barbeiro, data e horário
+- bloqueio automático de horários ocupados
+- backoffice para editar textos, serviços, barbeiros, imagens e datas bloqueadas
+- visão diária da agenda por barbeiro
+- confirmação, cancelamento e remarcação de agendamentos no admin
+- apoio a envio manual por WhatsApp com mensagem pronta
 
 ## Stack
 
-- Next.js
+- Next.js 16
+- React 19
 - TypeScript
-- React
-- PostgreSQL
 - Prisma
-
-## Escopo planejado
-
-- Home com hero, serviços, galeria e contato
-- Fluxo de agendamento por serviço, barbeiro, data e horário
-- Validação de horários disponíveis
-- Painel administrativo para gestão da agenda
+- SQLite
+- CSS Modules
 
 ## Como rodar
 
+1. Instale as dependências:
+
 ```bash
-npm install
-npm run dev
+yarn install
 ```
 
-Abra `http://localhost:3000`.
+2. Crie o arquivo `.env` com base no exemplo:
 
-## Próximas etapas
+```bash
+cp .env.example .env
+```
 
-- modelar banco com Prisma
-- configurar PostgreSQL
-- criar a tela de agendamento
-- implementar regras para bloquear conflitos de horário
-- preparar deploy e documentação do case
+3. Gere o schema do banco:
+
+```bash
+yarn db:push
+```
+
+4. Rode o projeto:
+
+```bash
+yarn dev
+```
+
+Abra [http://localhost:3001](http://localhost:3001).
+
+## Rotas principais
+
+- site público: `/`
+- backoffice: `/admin`
+
+## Estrutura
+
+- `src/app`:
+  rotas da aplicação e APIs
+- `src/components/home`:
+  componentes da home pública
+- `src/components/admin`:
+  componentes do backoffice
+- `src/components/shared`:
+  utilitários e componentes compartilhados
+- `prisma/schema.prisma`:
+  modelagem do banco
+
+## Próximos passos
+
+- autenticação real para o admin
+- integração automática com WhatsApp API
+- deploy em produção
+- melhoria do fluxo de onboarding de dados

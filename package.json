@@ -2,13 +2,19 @@
   "name": "barbershop-booking-system",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "yarn@1.22.22",
   "scripts": {
-    "dev": "next dev",
+    "predev": "prisma generate",
+    "dev": "next dev --port 3001",
+    "prebuild": "prisma generate",
     "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
+    "start": "next start --port 3001",
+    "lint": "eslint",
+    "prisma:generate": "prisma generate",
+    "db:push": "prisma db push"
   },
   "dependencies": {
+    "@prisma/client": "6.16.2",
     "next": "16.2.1",
     "react": "19.2.4",
     "react-dom": "19.2.4"
@@ -19,6 +25,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.1",
+    "prisma": "6.16.2",
     "typescript": "^5"
   }
 }
