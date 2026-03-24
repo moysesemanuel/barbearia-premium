@@ -48,7 +48,7 @@ Este projeto foi construído como case de portfólio com foco em um fluxo comerc
 - React 19
 - TypeScript
 - Prisma
-- SQLite local
+- PostgreSQL
 - CSS Modules
 
 ## Como rodar localmente
@@ -65,13 +65,21 @@ yarn install
 cp .env.example .env
 ```
 
-3. Gere o banco local:
+3. Configure a `DATABASE_URL` no `.env` apontando para o seu Postgres:
+
+Exemplo:
+
+```bash
+DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/DATABASE?sslmode=require"
+```
+
+4. Gere o banco:
 
 ```bash
 yarn db:push
 ```
 
-4. Rode o projeto:
+5. Rode o projeto:
 
 ```bash
 yarn dev
@@ -130,14 +138,14 @@ yarn db:push
 Arquivo base: [.env.example](/Users/moysescosta/Projects/personal_projects/.env.example)
 
 ```bash
-DATABASE_URL="file:./dev.db"
+DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/DATABASE?sslmode=require"
 GOOGLE_PLACES_API_KEY=""
 GOOGLE_PLACE_ID=""
 ```
 
 Observações:
 
-- hoje o projeto roda localmente com SQLite
+- hoje o projeto está preparado para Postgres
 - o adapter de avaliações do Google já está preparado, mas usa fallback local enquanto as credenciais não forem configuradas
 
 ## Estrutura
@@ -157,21 +165,23 @@ Observações:
 
 ## Produção
 
-Hoje o projeto está pronto para desenvolvimento local e demonstração funcional.
+Hoje o projeto está pronto para desenvolvimento local e deploy simples com banco hospedado.
 
-Para produção real, o caminho recomendado é:
+Para produção e portfólio, o caminho recomendado é:
 
 - Vercel para o app
 - Postgres gerenciado para o banco, como Supabase ou Neon
 
-Motivo:
+Fluxo sugerido:
 
-- o projeto usa SQLite local no ambiente atual
-- SQLite não é a melhor escolha para deploy serverless público com múltiplos acessos simultâneos
+1. criar um banco no Supabase ou Neon
+2. copiar a `DATABASE_URL`
+3. rodar `yarn db:push`
+4. subir o repositório na Vercel
+5. cadastrar as variáveis de ambiente na Vercel
 
 ## Próximos passos sugeridos
 
-- migrar de SQLite para Postgres
 - autenticação real de admin
 - integração automática com API de WhatsApp
 - dashboard com gráficos por período
