@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import styles from "@/app/admin/admin.module.css";
 import { AdminButton } from "@/components/admin/admin-button";
@@ -178,6 +180,8 @@ type RemovalTarget =
   | { type: "service"; index: number; label: string }
   | { type: "barber"; name: string; label: string }
   | { type: "closedDate"; date: string; label: string };
+
+type AdminSectionView = "overview" | "site" | "catalog" | "schedule";
 
 function getRemovalModalCopy(target: RemovalTarget) {
   if (target.type === "barber") {
@@ -407,7 +411,8 @@ function InlineCalendar({ value, onChange }: DatePickerFieldProps) {
   );
 }
 
-export function AdminPage() {
+export function AdminPage({ section = "overview" }: { section?: AdminSectionView }) {
+  const pathname = usePathname();
   const siteConfigSnapshot = useSiteConfig();
   const [config, setConfig] = useState(siteConfigSnapshot);
   const [closingDate, setClosingDate] = useState("2026-03-30");
@@ -1532,6 +1537,40 @@ export function AdminPage() {
     [appointments],
   );
 
+  const pageCopy = {
+    overview: {
+      eyebrow: "Acesso admin",
+      title: "Backoffice da barbearia",
+      description:
+        "Área para o dono navegar pelas configurações, agenda e indicadores sem depender de uma página única gigante.",
+    },
+    site: {
+      eyebrow: "Configurações do site",
+      title: "Conteúdo, prova social e fidelidade",
+      description:
+        "Atualize informações do negócio, cards da home e regras visuais da fidelidade.",
+    },
+    catalog: {
+      eyebrow: "Catálogo e equipe",
+      title: "Serviços, imagens e barbeiros",
+      description:
+        "Gerencie o catálogo público, os destaques visuais e a equipe exibida para o cliente.",
+    },
+    schedule: {
+      eyebrow: "Agenda e operação",
+      title: "Bloqueios, encaixes e agendamentos",
+      description:
+        "Controle o calendário da barbearia, crie reservas manuais e acompanhe a agenda real do dia.",
+    },
+  } as const;
+
+  const currentPage = pageCopy[section];
+  const showSiteSections = section === "site";
+  const showCatalogSections = section === "catalog";
+  const showScheduleSections = section === "schedule";
+  const showOverview = section === "overview";
+  const showSaveAction = section !== "overview";
+
   return (
     <div className={styles.adminPage}>
       <div className={styles.adminShell}>
@@ -1542,15 +1581,21 @@ export function AdminPage() {
           </div>
 
           <nav className={styles.sidebarNav}>
-            <a href="#visao-geral">Visão geral</a>
-            <a href="#informacoes">Informações principais</a>
-            <a href="#fidelidade">Fidelidade</a>
-            <a href="#servicos">Serviços e valores</a>
-            <a href="#imagens">Imagens</a>
-            <a href="#barbeiros">Barbeiros</a>
-            <a href="#agenda">Datas bloqueadas</a>
-            <a href="#operacao-agenda">Operação da agenda</a>
-            <a href="#agendamentos">Agendamentos</a>
+            <Link className={pathname === "/admin" ? styles.sidebarNavLinkActive : ""} href="/admin">
+              Visão geral
+            </Link>
+            <Link className={pathname === "/admin/site" ? styles.sidebarNavLinkActive : ""} href="/admin/site">
+              Site
+            </Link>
+            <Link className={pathname === "/admin/catalogo" ? styles.sidebarNavLinkActive : ""} href="/admin/catalogo">
+              Catálogo
+            </Link>
+            <Link className={pathname === "/admin/agenda" ? styles.sidebarNavLinkActive : ""} href="/admin/agenda">
+              Agenda
+            </Link>
+            <Link className={pathname === "/admin/dados" ? styles.sidebarNavLinkActive : ""} href="/admin/dados">
+              Dados
+            </Link>
           </nav>
 
           <div className={styles.sidebarStats}>
@@ -1568,21 +1613,20 @@ export function AdminPage() {
         <main className={styles.adminContent}>
           <section className={styles.adminHeader} id="visao-geral">
             <div>
-              <p className={styles.sectionEyebrow}>Acesso admin</p>
-              <h1>Backoffice da barbearia</h1>
-              <p>
-                Área para o dono ajustar conteúdo, preços, profissionais e agenda.
-                O que for salvo aqui já reflete no site público dentro deste navegador.
-              </p>
+              <p className={styles.sectionEyebrow}>{currentPage.eyebrow}</p>
+              <h1>{currentPage.title}</h1>
+              <p>{currentPage.description}</p>
               <p className={styles.saveStatusMessage}>{statusMessage}</p>
             </div>
             <div className={styles.adminHeaderActions}>
               <AdminButton variant="secondary" type="button" onClick={openPublicSite}>
                 Ver site público
               </AdminButton>
-              <AdminButton variant="primary" type="button" onClick={() => void saveChanges()}>
-                {savingSync ? "Salvando..." : "Salvar alterações"}
-              </AdminButton>
+              {showSaveAction ? (
+                <AdminButton variant="primary" type="button" onClick={() => void saveChanges()}>
+                  {savingSync ? "Salvando..." : "Salvar alterações"}
+                </AdminButton>
+              ) : null}
             </div>
           </section>
 
@@ -1596,6 +1640,53 @@ export function AdminPage() {
           </section>
 
           <div className={styles.adminSections}>
+            {showOverview ? (
+              <section className={styles.quickLinksGrid}>
+                <article className={styles.contentCard}>
+                  <div className={styles.contentCardHeader}>
+                    <p className={styles.sectionEyebrow}>Site</p>
+                    <h2>Conteúdo e fidelidade</h2>
+                    <p>Textos do negócio, indicadores da home, níveis e recompensas.</p>
+                  </div>
+                  <Link className={styles.inlineNavigationLink} href="/admin/site">
+                    Abrir configurações do site
+                  </Link>
+                </article>
+                <article className={styles.contentCard}>
+                  <div className={styles.contentCardHeader}>
+                    <p className={styles.sectionEyebrow}>Catálogo</p>
+                    <h2>Serviços, imagens e equipe</h2>
+                    <p>Catálogo público, galeria do site e barbeiros cadastrados.</p>
+                  </div>
+                  <Link className={styles.inlineNavigationLink} href="/admin/catalogo">
+                    Abrir catálogo e equipe
+                  </Link>
+                </article>
+                <article className={styles.contentCard}>
+                  <div className={styles.contentCardHeader}>
+                    <p className={styles.sectionEyebrow}>Agenda</p>
+                    <h2>Operação do dia</h2>
+                    <p>Bloqueios, encaixes manuais, calendário e agendamentos reais.</p>
+                  </div>
+                  <Link className={styles.inlineNavigationLink} href="/admin/agenda">
+                    Abrir agenda
+                  </Link>
+                </article>
+                <article className={styles.contentCard}>
+                  <div className={styles.contentCardHeader}>
+                    <p className={styles.sectionEyebrow}>Dados</p>
+                    <h2>Clientes e desempenho</h2>
+                    <p>Clientes, fidelidade, receita diária e dados para o futuro dashboard.</p>
+                  </div>
+                  <Link className={styles.inlineNavigationLink} href="/admin/dados">
+                    Abrir dados
+                  </Link>
+                </article>
+              </section>
+            ) : null}
+
+            {showSiteSections ? (
+              <>
             <section className={styles.sectionSplitLayout} id="informacoes">
               <article className={styles.contentCard}>
                 <div className={styles.contentCardHeader}>
@@ -1933,7 +2024,11 @@ export function AdminPage() {
                 Adicionar recompensa
               </AdminButton>
             </section>
+              </>
+            ) : null}
 
+            {showCatalogSections ? (
+              <>
             <section className={styles.contentCard} id="servicos">
               <div className={styles.contentCardHeader}>
                 <p className={styles.sectionEyebrow}>Catálogo</p>
@@ -2145,7 +2240,11 @@ export function AdminPage() {
                 </div>
               </aside>
             </section>
+              </>
+            ) : null}
 
+            {showScheduleSections ? (
+              <>
             <section className={styles.sectionSplitLayout} id="agenda">
               <article className={styles.contentCard}>
                 <div className={styles.contentCardHeader}>
@@ -2514,6 +2613,8 @@ export function AdminPage() {
                 </div>
               </article>
             </section>
+              </>
+            ) : null}
           </div>
 
           <footer className={styles.adminFooter}>

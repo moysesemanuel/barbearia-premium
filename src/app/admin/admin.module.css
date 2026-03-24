@@ -52,6 +52,12 @@
   cursor: pointer;
 }
 
+.sidebarNavLinkActive {
+  border-color: rgba(195, 154, 92, 0.28) !important;
+  background: rgba(195, 154, 92, 0.12) !important;
+  color: #f5efe6 !important;
+}
+
 .sidebarStats {
   display: grid;
   gap: 14px;
@@ -244,14 +250,24 @@
     background: rgba(195, 154, 92, 0.08);
   }
 
-  .adminFooterLink:hover {
+.adminFooterLink:hover {
     transform: translateY(-2px);
     opacity: 0.9;
+  }
+
+  .inlineNavigationLink:hover {
+    transform: translateY(-2px);
   }
 }
 
 .adminSections {
   display: grid;
+  gap: 20px;
+}
+
+.quickLinksGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 20px;
 }
 
@@ -307,6 +323,21 @@
 .contentCardBody {
   display: grid;
   gap: 18px;
+}
+
+.inlineNavigationLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  width: fit-content;
+  padding: 0 18px;
+  border: 1px solid rgba(195, 154, 92, 0.24);
+  border-radius: 999px;
+  background: rgba(195, 154, 92, 0.12);
+  color: #f5efe6;
+  font-weight: 700;
+  transition: transform 180ms ease, background-color 180ms ease, border-color 180ms ease;
 }
 
 .contentCardHeader {
@@ -656,6 +687,42 @@
   gap: 12px;
 }
 
+.tableWrapper {
+  overflow-x: auto;
+  border-radius: 22px;
+  border: 1px solid rgba(245, 239, 230, 0.08);
+  background: rgba(245, 239, 230, 0.03);
+}
+
+.adminTable {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+}
+
+.adminTable th,
+.adminTable td {
+  padding: 14px 16px;
+  text-align: left;
+  border-bottom: 1px solid rgba(245, 239, 230, 0.08);
+}
+
+.adminTable th {
+  color: rgba(245, 239, 230, 0.62);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.adminTable td {
+  color: rgba(245, 239, 230, 0.82);
+}
+
+.adminTable tbody tr:last-child td {
+  border-bottom: 0;
+}
+
 .barberAgendaGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -993,6 +1060,7 @@
   .adminShell,
   .sectionSplitLayout,
   .summaryMetricsGrid,
+  .quickLinksGrid,
   .galleryGrid,
   .barberAgendaGrid {
     grid-template-columns: 1fr;
