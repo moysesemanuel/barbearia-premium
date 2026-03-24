@@ -1,19 +1,39 @@
 "use client";
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import styles from "@/app/page.module.css";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
+import bookingStyles from "./home-booking.module.css";
 import {
-  getClientSiteConfigSnapshot,
+  CUSTOMER_SESSION_EVENT,
+  type CustomerSession,
+  readCustomerSession,
+  writeCustomerSession,
+} from "./customer-session";
+import { readCustomerReviews } from "./reviews-storage";
+import contactStyles from "./home-contact.module.css";
+import layoutStyles from "./home-layout.module.css";
+import sectionStyles from "./home-sections.module.css";
+import flowStyles from "./service-booking-flow.module.css";
+import { useSiteConfig } from "./use-site-config";
+import {
   getBusinessAddress,
   getDisplayStats,
-  getServerSiteConfigSnapshot,
-  SITE_CONFIG_STORAGE_KEY,
-  SITE_CONFIG_UPDATED_EVENT,
   type SiteConfig,
 } from "@/components/shared/site-config";
 import { DaBiTechSignature } from "@/components/shared/dabi-tech-signature";
-import { buildWhatsappUrl } from "@/components/shared/whatsapp";
+import {
+  buildWhatsappUrl,
+  formatWhatsappDisplay,
+} from "@/components/shared/whatsapp";
 import { SectionHeading } from "./section-heading";
+
+const styles = {
+  ...layoutStyles,
+  ...sectionStyles,
+  ...bookingStyles,
+  ...contactStyles,
+};
 
 function formatSelectedDate(date: string) {
   return new Intl.DateTimeFormat("pt-BR", {
@@ -23,7 +43,7 @@ function formatSelectedDate(date: string) {
   }).format(new Date(`${date}T12:00:00`));
 }
 
-type NextAvailableSlot = {
+export type NextAvailableSlot = {
   date: string;
   time: string;
   barberName: string;
@@ -42,6 +62,8 @@ type BookingSuccessState = {
   date: string;
   time: string;
 };
+
+type HeaderAuthMode = "login" | "register";
 
 function getTodayDateString() {
   const now = new Date();
@@ -98,24 +120,360 @@ function getBusinessMapQuery(config: SiteConfig) {
     .join(", ");
 }
 
-function Header({ config }: { config: SiteConfig }) {
+export function Header({
+  config,
+  homeLinks = false,
+  profileHref,
+  profileTitle = "Perfil do cliente",
+  profileName,
+  profileSubtitle,
+  profilePoints,
+  profileRole,
+  onProfileLogout,
+}: {
+  config: SiteConfig;
+  homeLinks?: boolean;
+  profileHref?: string;
+  profileTitle?: string;
+  profileName?: string;
+  profileSubtitle?: string;
+  profilePoints?: number;
+  profileRole?: "CUSTOMER" | "ADMIN";
+  onProfileLogout?: () => void;
+}) {
+  const pathname = usePathname();
+  const homePrefix = homeLinks ? "/#" : "#";
+  const [currentHash, setCurrentHash] = useState("");
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<HeaderAuthMode>("login");
+  const [authName, setAuthName] = useState("");
+  const [authPhone, setAuthPhone] = useState("");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authError, setAuthError] = useState("");
+  const [isSubmittingAuth, setIsSubmittingAuth] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    function syncHash() {
+      setCurrentHash(window.location.hash);
+    }
+
+    syncHash();
+    window.addEventListener("hashchange", syncHash);
+
+    return () => {
+      window.removeEventListener("hashchange", syncHash);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isProfileMenuOpen) {
+      return;
+    }
+
+    function handleClickOutside(event: MouseEvent) {
+      if (!profileMenuRef.current?.contains(event.target as Node)) {
+        setIsProfileMenuOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isProfileMenuOpen]);
+
+  async function handleHeaderCustomerAccess() {
+    setAuthError("");
+
+    if (!authEmail.trim() || !authPassword.trim()) {
+      setAuthError("Preencha e-mail e senha para continuar.");
+      return;
+    }
+
+    if (authMode === "register" && !authName.trim()) {
+      setAuthError("Preencha seu nome para criar a conta.");
+      return;
+    }
+
+    if (authMode === "register" && !authPhone.trim()) {
+      setAuthError("Preencha o WhatsApp para criar a conta.");
+      return;
+    }
+
+    setIsSubmittingAuth(true);
+
+    try {
+      const response = await fetch("/api/customers/session", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: authMode,
+          name: authName.trim(),
+          phone: authPhone.trim(),
+          email: authEmail.trim(),
+          password: authPassword.trim(),
+        }),
+      });
+      const payload = (await response.json()) as {
+        customer?: CustomerSession;
+        error?: string;
+      };
+
+      if (!response.ok || !payload.customer) {
+        throw new Error(payload.error ?? "Nao foi possivel acessar sua conta.");
+      }
+
+      writeCustomerSession(payload.customer);
+      setIsAuthModalOpen(false);
+      setAuthPassword("");
+      setIsProfileMenuOpen(false);
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "Nao foi possivel acessar sua conta.");
+    } finally {
+      setIsSubmittingAuth(false);
+    }
+  }
+
+  const navItems = [
+    { label: "O studio", href: homeLinks ? "/" : "#studio", sectionHash: "#studio", routePrefix: undefined },
+    { label: "Clube", href: `${homePrefix}clube`, sectionHash: "#clube", routePrefix: undefined },
+    { label: "Serviços", href: `${homePrefix}servicos`, sectionHash: "#servicos", routePrefix: undefined },
+    { label: "Agendamento", href: "/agendamento", routePrefix: "/agendamento", sectionHash: undefined },
+    { label: "Localização", href: `${homePrefix}contato`, sectionHash: "#contato", routePrefix: undefined },
+  ] as const;
+
+  function isNavItemActive(item: (typeof navItems)[number]) {
+    if (item.routePrefix) {
+      return pathname.startsWith(item.routePrefix);
+    }
+
+    if (pathname !== "/") {
+      return false;
+    }
+
+    return currentHash === item.sectionHash;
+  }
+
   return (
-    <header className={styles.header}>
-      <div>
-        <span className={styles.brand}>{config.businessName}</span>
-        <p className={styles.brandTag}>{config.businessTag}</p>
-      </div>
-      <nav className={styles.nav}>
-        <a href="#studio">O studio</a>
-        <a href="#clube">Clube</a>
-        <a href="#servicos">Serviços</a>
-        <a href="#agendamento">Agendamento</a>
-        <a href="#contato">Contato</a>
+    <>
+      <header className={styles.header}>
+        <div>
+          <span className={styles.brand}>{config.businessName}</span>
+          <p className={styles.brandTag}>{config.businessTag}</p>
+        </div>
+        <nav className={styles.nav}>
+        {navItems.map((item) => (
+          <Link
+            className={`${styles.navLink} ${isNavItemActive(item) ? styles.navLinkActive : ""}`}
+            href={item.href}
+            key={item.label}
+          >
+            {item.label}
+          </Link>
+        ))}
       </nav>
-      <a className={styles.headerCta} href="#contato">
-        Agende
-      </a>
-    </header>
+        <div className={styles.headerActions}>
+          {profileHref ? (
+            <div className={styles.profileMenu} ref={profileMenuRef}>
+              <button
+                className={styles.profileButton}
+                onClick={() => setIsProfileMenuOpen((current) => !current)}
+                type="button"
+                title={profileTitle}
+                aria-label={profileTitle}
+                aria-expanded={isProfileMenuOpen}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="M12 12a4.5 4.5 0 1 0-4.5-4.5A4.5 4.5 0 0 0 12 12Zm0 2.25c-3.66 0-6.75 1.88-6.75 4.13V20h13.5v-1.62c0-2.25-3.09-4.13-6.75-4.13Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+              {isProfileMenuOpen ? (
+                <div className={styles.profileDropdown}>
+                  {profileName && onProfileLogout ? (
+                    <>
+                      <div className={styles.profileIdentity}>
+                        <strong>{profileName}</strong>
+                        <span>{profileSubtitle}</span>
+                      </div>
+                      <div className={styles.profileMeta}>
+                        <span>Fidelidade</span>
+                        <strong>{profilePoints ?? 0} pts</strong>
+                      </div>
+                      {profileRole === "ADMIN" ? (
+                        <Link
+                          className={styles.profileAdminButton}
+                          href="/admin"
+                          onClick={() => setIsProfileMenuOpen(false)}
+                        >
+                          Área do admin
+                        </Link>
+                      ) : null}
+                      <button
+                        className={styles.profileLogoutButton}
+                        onClick={() => {
+                          setIsProfileMenuOpen(false);
+                          onProfileLogout();
+                        }}
+                        type="button"
+                      >
+                        Sair
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div className={styles.profileIdentity}>
+                        <strong>Acesso do cliente</strong>
+                        <span>Entre para acompanhar seus agendamentos e reservas.</span>
+                      </div>
+                      <button
+                        className={styles.profileLogoutButton}
+                        onClick={() => {
+                          setAuthMode("login");
+                          setAuthError("");
+                          setIsAuthModalOpen(true);
+                          setIsProfileMenuOpen(false);
+                        }}
+                        type="button"
+                      >
+                        Entrar
+                      </button>
+                    </>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          <Link className={styles.headerCta} href="/agendamento">
+            Agende
+          </Link>
+        </div>
+      </header>
+
+      {isAuthModalOpen ? (
+        <div className={flowStyles.modalOverlay}>
+          <div className={`${flowStyles.modal} ${flowStyles.modalCompact}`}>
+            <button
+              className={flowStyles.modalCloseButton}
+              onClick={() => {
+                setIsAuthModalOpen(false);
+                setAuthError("");
+              }}
+              type="button"
+              aria-label="Fechar modal de acesso"
+            >
+              ×
+            </button>
+            <div className={flowStyles.modalHeader}>
+              <span className={styles.sectionEyebrow}>Login do cliente</span>
+              <h3>
+                {authMode === "login"
+                  ? "Faça login para acessar sua conta."
+                  : "Crie sua conta para acessar sua área de cliente."}
+              </h3>
+              <p>
+                Seu cadastro fica salvo para próximas reservas e evita preencher
+                os dados novamente.
+              </p>
+            </div>
+
+            <div className={flowStyles.modalActions}>
+              <button
+                className={authMode === "login" ? flowStyles.modeButtonActive : flowStyles.modeButton}
+                onClick={() => {
+                  setAuthMode("login");
+                  setAuthError("");
+                }}
+                type="button"
+              >
+                Entrar
+              </button>
+              <button
+                className={authMode === "register" ? flowStyles.modeButtonActive : flowStyles.modeButton}
+                onClick={() => {
+                  setAuthMode("register");
+                  setAuthError("");
+                }}
+                type="button"
+              >
+                Criar conta
+              </button>
+            </div>
+
+            <div className={flowStyles.fieldGrid}>
+              {authMode === "register" ? (
+                <label className={flowStyles.field}>
+                  <span>Nome completo</span>
+                  <input value={authName} onChange={(event) => setAuthName(event.target.value)} />
+                </label>
+              ) : null}
+              <label className={flowStyles.field}>
+                <span>E-mail</span>
+                <input
+                  type="email"
+                  value={authEmail}
+                  onChange={(event) => setAuthEmail(event.target.value)}
+                />
+              </label>
+              <label className={flowStyles.field}>
+                <span>Senha</span>
+                <input
+                  type="password"
+                  value={authPassword}
+                  onChange={(event) => setAuthPassword(event.target.value)}
+                />
+                {authMode === "register" ? (
+                  <small className={flowStyles.fieldHint}>
+                    Use no mínimo 6 caracteres para criar sua senha.
+                  </small>
+                ) : null}
+              </label>
+              {authMode === "register" ? (
+                <label className={`${flowStyles.field} ${flowStyles.fieldWide}`}>
+                  <span>WhatsApp</span>
+                  <input value={authPhone} onChange={(event) => setAuthPhone(event.target.value)} />
+                </label>
+              ) : null}
+            </div>
+
+            {authError ? (
+              <div className={`${flowStyles.feedback} ${flowStyles.feedbackError}`}>{authError}</div>
+            ) : null}
+
+            <div className={flowStyles.modalActions}>
+              <button
+                className={flowStyles.modalSecondaryButton}
+                onClick={() => setIsAuthModalOpen(false)}
+                type="button"
+              >
+                Fechar
+              </button>
+              <button
+                className={flowStyles.modalPrimaryButton}
+                onClick={() => void handleHeaderCustomerAccess()}
+                type="button"
+              >
+                {isSubmittingAuth
+                  ? authMode === "login"
+                    ? "Entrando..."
+                    : "Criando conta..."
+                  : authMode === "login"
+                    ? "Entrar"
+                    : "Criar conta"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }
 
@@ -133,9 +491,9 @@ function HeroSection({
         <h1>{config.headline}</h1>
         <p className={styles.description}>{config.heroDescription}</p>
         <div className={styles.ctas}>
-          <a className={styles.primary} href="#agendamento">
+          <Link className={styles.primary} href="/agendamento">
             Agendar agora
-          </a>
+          </Link>
           <a className={styles.secondary} href="#servicos">
             Ver serviços
           </a>
@@ -194,15 +552,7 @@ function ShowcaseSection({ config }: { config: SiteConfig }) {
   );
 }
 
-function AboutSection({ config }: { config: SiteConfig }) {
-  const businessAddress = useMemo(() => getBusinessAddress(config), [config]);
-  const businessLocationLabel = useMemo(
-    () =>
-      [config.city, config.neighborhood].filter(Boolean).join(" - ") ||
-      "Localização da barbearia",
-    [config.city, config.neighborhood],
-  );
-
+function AboutSection() {
   return (
     <section className={styles.aboutSection} id="studio">
       <SectionHeading
@@ -211,15 +561,14 @@ function AboutSection({ config }: { config: SiteConfig }) {
       />
       <div className={styles.aboutGrid}>
         <article className={styles.aboutCardLarge}>
-          <p>
-            Atendimento para quem busca presença, autoestima e consistência no
-            visual.
-          </p>
-        </article>
-        <article className={styles.aboutCardSmall}>
-          <span>Localização</span>
-          <strong>{businessLocationLabel}</strong>
-          <p>{businessAddress || "Fácil acesso, atendimento com reserva e operação enxuta."}</p>
+          <p className={styles.benefitsTitle}>Por que escolher a gente?</p>
+          <ul className={styles.benefitsList}>
+            <li>Atendimento personalizado para o seu estilo</li>
+            <li>Profissionais experientes e atualizados</li>
+            <li>Ambiente confortável e acolhedor</li>
+            <li>Agendamento prático e rápido</li>
+            <li>Resultado consistente em cada visita</li>
+          </ul>
         </article>
       </div>
     </section>
@@ -279,7 +628,7 @@ function ServicesSection({ config }: { config: SiteConfig }) {
   );
 }
 
-function BookingSection({
+export function BookingSection({
   config,
   onNextAvailableChange,
 }: {
@@ -615,8 +964,14 @@ function BookingSection({
   );
 }
 
-function StatsSection({ config }: { config: SiteConfig }) {
-  const displayStats = getDisplayStats(config);
+function StatsSection({
+  config,
+  averageRatingValue,
+}: {
+  config: SiteConfig;
+  averageRatingValue?: string;
+}) {
+  const displayStats = getDisplayStats(config, averageRatingValue);
 
   return (
     <section className={styles.statsSection}>
@@ -625,25 +980,6 @@ function StatsSection({ config }: { config: SiteConfig }) {
           <article className={styles.statCard} key={item.label}>
             <strong>{item.value}</strong>
             <p>{item.label}</p>
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function TestimonialsSection({ config }: { config: SiteConfig }) {
-  return (
-    <section className={styles.section}>
-      <SectionHeading
-        eyebrow="Depoimentos"
-        title="Atendimento consistente que gera confiança."
-      />
-      <div className={styles.testimonialGrid}>
-        {config.testimonials.map((testimonial) => (
-          <article className={styles.testimonialCard} key={testimonial.name}>
-            <p>&quot;{testimonial.quote}&quot;</p>
-            <strong>{testimonial.name}</strong>
           </article>
         ))}
       </div>
@@ -666,37 +1002,10 @@ function ContactSection({ config }: { config: SiteConfig }) {
 
   return (
     <section className={styles.contactSection} id="contato">
-      <div className={styles.contactIntro}>
-        <p className={styles.sectionEyebrow}>Contato</p>
-        <h2>Garanta seu horário agora.</h2>
-        <p className={styles.contactText}>
-          Atendimento com reserva, confirmação rápida e acompanhamento pensado
-          para transformar visita em recorrência.
-        </p>
-      </div>
-
-      <div className={styles.contactCard}>
-        <div>
-          <span className={styles.contactLabel}>Endereço</span>
-          <p>{businessAddress}</p>
-        </div>
-        <div>
-          <span className={styles.contactLabel}>Horários</span>
-          <p>Seg a sex, 9h às 20h | Sáb, 8h às 18h</p>
-        </div>
-        <div>
-          <span className={styles.contactLabel}>WhatsApp</span>
-          <p>{config.whatsapp}</p>
-        </div>
-        <a className={styles.primary} href={`https://wa.me/55${config.whatsapp.replace(/\D/g, "")}`}>
-          Agendar pelo WhatsApp
-        </a>
-      </div>
-
       <div className={styles.contactMapCard}>
         <div className={styles.contactMapHeader}>
-          <span className={styles.contactLabel}>Mapa</span>
-          <p>Veja a localização da barbearia.</p>
+          <span className={styles.contactLabel}>Localização</span>
+          <p>Veja a localização da barbearia e escolha a melhor rota até o studio.</p>
         </div>
         <div className={styles.contactMapFrame}>
           <div className={styles.contactMapActions}>
@@ -735,11 +1044,38 @@ function ContactSection({ config }: { config: SiteConfig }) {
           />
         </div>
       </div>
+
+      <div className={styles.contactCard}>
+        <div className={styles.contactIntro}>
+          <p className={styles.sectionEyebrow}>Contato</p>
+          <h2>Garanta seu horário agora.</h2>
+        </div>
+        <div>
+          <span className={styles.contactLabel}>Endereço</span>
+          <p>{businessAddress}</p>
+        </div>
+        <div>
+          <span className={styles.contactLabel}>Horários</span>
+          <p>Seg a sex, 9h às 20h | Sáb, 8h às 18h</p>
+        </div>
+        <div>
+          <span className={styles.contactLabel}>WhatsApp</span>
+          <p>{formatWhatsappDisplay(config.whatsapp)}</p>
+        </div>
+        <div className={styles.contactActions}>
+          <a className={styles.primary} href={`https://wa.me/55${config.whatsapp.replace(/\D/g, "")}`}>
+            Agendar pelo WhatsApp
+          </a>
+          <Link className={styles.contactSecondaryButton} href="/agendamento">
+            Agendar no site
+          </Link>
+        </div>
+      </div>
     </section>
   );
 }
 
-function FooterSection() {
+export function FooterSection() {
   return (
     <footer className={styles.footer}>
       <DaBiTechSignature
@@ -752,42 +1088,178 @@ function FooterSection() {
   );
 }
 
-function subscribeToSiteConfig(onStoreChange: () => void) {
-  if (typeof window === "undefined") {
-    return () => {};
-  }
-
-  function handleStorage(event: StorageEvent) {
-    if (!event.key || event.key === SITE_CONFIG_STORAGE_KEY) {
-      onStoreChange();
-    }
-  }
-
-  function handleLocalUpdate() {
-    onStoreChange();
-  }
-
-  window.addEventListener("storage", handleStorage);
-  window.addEventListener(SITE_CONFIG_UPDATED_EVENT, handleLocalUpdate);
-
-  return () => {
-    window.removeEventListener("storage", handleStorage);
-    window.removeEventListener(SITE_CONFIG_UPDATED_EVENT, handleLocalUpdate);
-  };
-}
-
 export function HomePage() {
-  const config = useSyncExternalStore(
-    subscribeToSiteConfig,
-    getClientSiteConfigSnapshot,
-    getServerSiteConfigSnapshot,
-  );
+  const config = useSiteConfig();
   const [nextAvailable, setNextAvailable] = useState<NextAvailableSlot>(null);
+  const [customerSession, setCustomerSession] = useState<CustomerSession | null>(null);
+  const [profilePoints, setProfilePoints] = useState(0);
+  const [averageRatingValue, setAverageRatingValue] = useState("5,0/5");
+
+  useEffect(() => {
+    function syncCustomerSession() {
+      setCustomerSession(readCustomerSession());
+    }
+
+    syncCustomerSession();
+    window.addEventListener(CUSTOMER_SESSION_EVENT, syncCustomerSession);
+
+    return () => {
+      window.removeEventListener(CUSTOMER_SESSION_EVENT, syncCustomerSession);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!customerSession) {
+      setProfilePoints(0);
+      return;
+    }
+
+    const customerId = customerSession.id;
+    let active = true;
+
+    async function loadProfilePoints() {
+      try {
+        const response = await fetch(
+          `/api/customers/loyalty?customerId=${encodeURIComponent(customerId)}`,
+          { cache: "no-store" },
+        );
+        const payload = (await response.json()) as { points?: number };
+
+        if (!response.ok) {
+          throw new Error();
+        }
+
+        if (active) {
+          setProfilePoints(payload.points ?? 0);
+        }
+      } catch {
+        if (active) {
+          setProfilePoints(0);
+        }
+      }
+    }
+
+    void loadProfilePoints();
+
+    return () => {
+      active = false;
+    };
+  }, [customerSession]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadAverageRating() {
+      try {
+        const localTestimonials = config.testimonials.map((item) => ({
+          rating: 5,
+          quote: item.quote,
+        }));
+        const customerReviews = readCustomerReviews().map((item) => ({
+          rating: item.rating ?? 5,
+          quote: item.quote,
+        }));
+
+        const response = await fetch("/api/google-reviews", {
+          cache: "no-store",
+        });
+        const payload = (await response.json()) as {
+          reviews?: Array<{ rating?: number; quote?: string }>;
+        };
+
+        const googleReviews = (payload.reviews ?? []).map((item) => ({
+          rating: item.rating ?? 5,
+          quote: item.quote ?? "",
+        }));
+
+        const allReviews = [...localTestimonials, ...customerReviews, ...googleReviews].filter(
+          (item) => item.quote,
+        );
+
+        const average =
+          allReviews.length > 0
+            ? allReviews.reduce((total, item) => total + (item.rating ?? 5), 0) /
+              allReviews.length
+            : 5;
+
+        if (active) {
+          setAverageRatingValue(`${average.toFixed(1).replace(".", ",")}/5`);
+        }
+      } catch {
+        if (active) {
+          setAverageRatingValue("5,0/5");
+        }
+      }
+    }
+
+    void loadAverageRating();
+
+    return () => {
+      active = false;
+    };
+  }, [config.testimonials]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadNextAvailable() {
+      const defaultService = config.services[2]?.name ?? config.services[0]?.name;
+      const defaultBarber = config.barbers[0]?.name;
+
+      if (!defaultService || !defaultBarber) {
+        setNextAvailable(null);
+        return;
+      }
+
+      try {
+        const params = new URLSearchParams({
+          service: defaultService,
+          barber: defaultBarber,
+          date: getTodayDateString(),
+        });
+        const response = await fetch(`/api/availability?${params.toString()}`, {
+          cache: "no-store",
+        });
+        const payload = (await response.json()) as AvailabilityResponse & { error?: string };
+
+        if (!response.ok) {
+          throw new Error(payload.error ?? "Nao foi possivel consultar a agenda.");
+        }
+
+        if (active) {
+          setNextAvailable(payload.nextAvailable);
+        }
+      } catch {
+        if (active) {
+          setNextAvailable(null);
+        }
+      }
+    }
+
+    void loadNextAvailable();
+
+    return () => {
+      active = false;
+    };
+  }, [config.barbers, config.services]);
 
   return (
     <div className={styles.page}>
       <section className={styles.heroShell}>
-        <Header config={config} />
+        <Header
+          config={config}
+          profileHref="/agendamento#acesso-cliente"
+          profileTitle={customerSession ? `Perfil de ${customerSession.name}` : "Acesso do cliente"}
+          profileName={customerSession?.name}
+          profileSubtitle={customerSession?.email || customerSession?.phone}
+          profilePoints={profilePoints}
+          profileRole={customerSession?.role}
+          onProfileLogout={() => {
+            writeCustomerSession(null);
+            setCustomerSession(null);
+            setProfilePoints(0);
+          }}
+        />
         <main className={styles.main}>
           <HeroSection config={config} nextAvailable={nextAvailable} />
           <ShowcaseSection config={config} />
@@ -796,15 +1268,10 @@ export function HomePage() {
 
       <section className={styles.contentSurface}>
         <div className={styles.contentInner}>
-          <AboutSection config={config} />
+          <AboutSection />
+          <StatsSection config={config} averageRatingValue={averageRatingValue} />
           <PlansSection config={config} />
           <ServicesSection config={config} />
-          <BookingSection
-            config={config}
-            onNextAvailableChange={setNextAvailable}
-          />
-          <StatsSection config={config} />
-          <TestimonialsSection config={config} />
           <ContactSection config={config} />
           <FooterSection />
         </div>

@@ -3,11 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import styles from "@/app/admin/admin.module.css";
 import { AdminButton } from "@/components/admin/admin-button";
+import { useSiteConfig } from "@/components/home/use-site-config";
+import { readCustomerReviews } from "@/components/home/reviews-storage";
 import { DaBiTechSignature } from "@/components/shared/dabi-tech-signature";
 import {
   getDisplayStats,
   LEGACY_BUSINESS_TAG_PREFIX,
-  readSiteConfig,
   writeSiteConfig,
 } from "@/components/shared/site-config";
 import { buildWhatsappUrl } from "@/components/shared/whatsapp";
@@ -405,7 +406,8 @@ function InlineCalendar({ value, onChange }: DatePickerFieldProps) {
 }
 
 export function AdminPage() {
-  const [config, setConfig] = useState(() => readSiteConfig());
+  const siteConfigSnapshot = useSiteConfig();
+  const [config, setConfig] = useState(siteConfigSnapshot);
   const [closingDate, setClosingDate] = useState("2026-03-30");
   const [closingReason, setClosingReason] = useState("Treinamento interno");
   const [addressLookupMessage, setAddressLookupMessage] = useState("");
@@ -418,6 +420,7 @@ export function AdminPage() {
   const [appointmentsMessage, setAppointmentsMessage] = useState("Carregando agendamentos...");
   const [appointmentsLoading, setAppointmentsLoading] = useState(true);
   const [appointmentsRefreshToken, setAppointmentsRefreshToken] = useState(0);
+  const [averageRatingValue, setAverageRatingValue] = useState("5,0/5");
   const [savingSync, setSavingSync] = useState(false);
   const [updatingAppointmentId, setUpdatingAppointmentId] = useState<string | null>(null);
   const [editingAppointmentId, setEditingAppointmentId] = useState<string | null>(null);
@@ -457,6 +460,10 @@ export function AdminPage() {
     description: "",
     image: config.services[0]?.image ?? "",
   });
+
+  useEffect(() => {
+    setConfig(siteConfigSnapshot);
+  }, [siteConfigSnapshot]);
 
   useEffect(() => {
     let active = true;
@@ -783,7 +790,69 @@ export function AdminPage() {
     reader.readAsDataURL(file);
   }
 
-  const displayStats = getDisplayStats(config);
+  const displayStats = getDisplayStats(config, averageRatingValue);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadAverageRating() {
+      try {
+        const localTestimonials = config.testimonials.map((item) => ({
+          rating: 5,
+          quote: item.quote,
+        }));
+        const customerReviews = readCustomerReviews().map((item) => ({
+          rating: item.rating ?? 5,
+          quote: item.quote,
+        }));
+
+        const response = await fetch("/api/google-reviews", {
+          cache: "no-store",
+        });
+        const payload = (await response.json()) as {
+          reviews?: Array<{ rating?: number; quote?: string }>;
+        };
+
+        const googleReviews = (payload.reviews ?? []).map((item) => ({
+          rating: item.rating ?? 5,
+          quote: item.quote ?? "",
+        }));
+
+        const allReviews = [...localTestimonials, ...customerReviews, ...googleReviews].filter(
+          (item) => item.quote,
+        );
+
+        const average =
+          allReviews.length > 0
+            ? allReviews.reduce((total, item) => total + (item.rating ?? 5), 0) /
+              allReviews.length
+            : 5;
+
+        if (active) {
+          setAverageRatingValue(`${average.toFixed(1).replace(".", ",")}/5`);
+        }
+      } catch {
+        if (active) {
+          setAverageRatingValue("5,0/5");
+        }
+      }
+    }
+
+    void loadAverageRating();
+
+    function handleStorage(event: StorageEvent) {
+      if (event.key === "prime-cut-customer-reviews") {
+        void loadAverageRating();
+      }
+    }
+
+    window.addEventListener("storage", handleStorage);
+
+    return () => {
+      active = false;
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, [config.testimonials]);
   const serviceDurationMap = useMemo(
     () =>
       new Map(
@@ -1568,8 +1637,8 @@ export function AdminPage() {
                   <label htmlFor="stats-rating-value">Média de avaliações</label>
                   <input
                     id="stats-rating-value"
-                    value={config.stats[1]?.value ?? ""}
-                    onChange={(event) => updateStat(1, "value", event.target.value)}
+                    value={averageRatingValue}
+                    readOnly
                   />
                 </div>
                 <div className={styles.formField}>
@@ -1598,6 +1667,10 @@ export function AdminPage() {
                   />
                 </div>
               </div>
+
+              <p className={styles.formFieldHint}>
+                A média de avaliações é calculada automaticamente a partir das avaliações do site e do Google.
+              </p>
             </section>
 
             <section className={styles.contentCard} id="servicos">
@@ -1767,7 +1840,9 @@ export function AdminPage() {
               <aside className={styles.sideListCard}>
                 <div className={styles.contentCardHeader}>
                   <p className={styles.sectionEyebrow}>Equipe cadastrada</p>
-                  <h2 className={styles.listCardTitle}>{config.barbers.length} profissionais</h2>
+                  <h2 className={styles.listCardTitle}>
+                    {config.barbers.length} {config.barbers.length === 1 ? "profissional" : "profissionais"}
+                  </h2>
                 </div>
                 <div className={styles.stackedList}>
                   {config.barbers.map((barber) => (
@@ -1799,7 +1874,7 @@ export function AdminPage() {
               <article className={styles.contentCard}>
                 <div className={styles.contentCardHeader}>
                   <p className={styles.sectionEyebrow}>Agenda</p>
-                  <h2>Datas bloqueadas</h2>
+                  <h2>Datas que a barbearia vai fechar (feriados)</h2>
                   <p>Marque feriados, fechamentos pontuais ou períodos de treinamento.</p>
                 </div>
 

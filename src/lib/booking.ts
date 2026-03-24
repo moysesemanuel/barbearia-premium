@@ -1,5 +1,6 @@
 import { AppointmentStatus, type Barber, type Service } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { hashPassword } from "@/lib/password";
 
 const SLOT_INTERVAL_MINUTES = 30;
 const SEARCH_WINDOW_DAYS = 21;
@@ -181,27 +182,50 @@ async function seedInitialData() {
     if (seededBarbers.length > 0 && primaryService) {
       const today = getTodayDateKey();
       const tomorrow = getDateKey(addDays(new Date(), 1));
+      const customers = await Promise.all([
+        upsertCustomerProfile({
+          name: "Cliente Demo 1",
+          phone: "11990000001",
+          email: "cliente1@demo.com",
+        }),
+        upsertCustomerProfile({
+          name: "Cliente Demo 2",
+          phone: "11990000002",
+          email: "cliente2@demo.com",
+        }),
+        upsertCustomerProfile({
+          name: "Cliente Demo 3",
+          phone: "11990000003",
+          email: "cliente3@demo.com",
+        }),
+      ]);
 
       const appointments = [
         {
+          customerId: customers[0].id,
           customerName: "Cliente Demo 1",
           customerPhone: "11990000001",
+          customerEmail: "cliente1@demo.com",
           barberId: seededBarbers[0].id,
           serviceId: primaryService.id,
           startsAt: combineDateAndTime(today, "09:00"),
           endsAt: combineDateAndTime(today, "09:40"),
         },
         {
+          customerId: customers[1].id,
           customerName: "Cliente Demo 2",
           customerPhone: "11990000002",
+          customerEmail: "cliente2@demo.com",
           barberId: seededBarbers[0].id,
           serviceId: primaryService.id,
           startsAt: combineDateAndTime(today, "10:30"),
           endsAt: combineDateAndTime(today, "11:10"),
         },
         {
+          customerId: customers[2].id,
           customerName: "Cliente Demo 3",
           customerPhone: "11990000003",
+          customerEmail: "cliente3@demo.com",
           barberId: seededBarbers[1]?.id ?? seededBarbers[0].id,
           serviceId: primaryService.id,
           startsAt: combineDateAndTime(tomorrow, "13:00"),
@@ -212,6 +236,23 @@ async function seedInitialData() {
       await prisma.appointment.createMany({ data: appointments });
     }
   }
+
+  await prisma.customer.upsert({
+    where: { phone: "11999990000" },
+    update: {
+      name: "Administrador Prime Cut",
+      email: "admin@primecutstudio.com",
+      passwordHash: hashPassword("admin123"),
+      role: "ADMIN",
+    },
+    create: {
+      name: "Administrador Prime Cut",
+      phone: "11999990000",
+      email: "admin@primecutstudio.com",
+      passwordHash: hashPassword("admin123"),
+      role: "ADMIN",
+    },
+  });
 }
 
 let bootstrapPromise: Promise<void> | null = null;
@@ -244,6 +285,27 @@ export async function getServiceByName(name: string) {
 export async function getBarberByName(name: string) {
   return prisma.barber.findUnique({
     where: { name },
+  });
+}
+
+export async function upsertCustomerProfile(params: {
+  name: string;
+  phone: string;
+  email?: string;
+}) {
+  const { name, phone, email } = params;
+
+  return prisma.customer.upsert({
+    where: { phone },
+    update: {
+      name,
+      email: email?.trim() ? email.trim() : null,
+    },
+    create: {
+      name,
+      phone,
+      email: email?.trim() ? email.trim() : null,
+    },
   });
 }
 
@@ -376,11 +438,25 @@ export async function createAppointment(params: {
   service: Service;
   date: string;
   time: string;
+  customerId: string;
   customerName: string;
   customerPhone: string;
+  customerEmail?: string;
+  preferSilent?: boolean;
   notes?: string;
 }) {
-  const { barber, service, date, time, customerName, customerPhone, notes } = params;
+  const {
+    barber,
+    service,
+    date,
+    time,
+    customerId,
+    customerName,
+    customerPhone,
+    customerEmail,
+    preferSilent,
+    notes,
+  } = params;
   const businessHours = getBusinessHours(date);
 
   if (!businessHours) {
@@ -420,10 +496,13 @@ export async function createAppointment(params: {
 
   return prisma.appointment.create({
     data: {
+      customerId,
       barberId: barber.id,
       serviceId: service.id,
       customerName,
       customerPhone,
+      customerEmail: customerEmail?.trim() ? customerEmail.trim() : null,
+      preferSilent: Boolean(preferSilent),
       notes: notes?.trim() ? notes.trim() : null,
       startsAt,
       endsAt,

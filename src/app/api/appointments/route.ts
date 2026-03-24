@@ -4,6 +4,7 @@ import {
   ensureBookingSeedData,
   getBarberByName,
   getServiceByName,
+  upsertCustomerProfile,
 } from "@/lib/booking";
 import { prisma } from "@/lib/prisma";
 
@@ -12,8 +13,11 @@ type CreateAppointmentBody = {
   barberName?: string;
   date?: string;
   time?: string;
+  customerId?: string;
   customerName?: string;
   customerPhone?: string;
+  customerEmail?: string;
+  preferSilent?: boolean;
   notes?: string;
 };
 
@@ -47,7 +51,9 @@ export async function GET(request: NextRequest) {
         id: appointment.id,
         customerName: appointment.customerName,
         customerPhone: appointment.customerPhone,
+        customerEmail: appointment.customerEmail,
         notes: appointment.notes,
+        preferSilent: appointment.preferSilent,
         status: appointment.status,
         startsAt: appointment.startsAt,
         endsAt: appointment.endsAt,
@@ -78,7 +84,7 @@ export async function POST(request: NextRequest) {
       body.barberName,
       body.date,
       body.time,
-      body.customerName,
+      body.customerId ?? body.customerName,
       body.customerPhone,
     ];
 
@@ -101,13 +107,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const customer =
+      body.customerId?.trim()
+        ? await prisma.customer.findUnique({ where: { id: body.customerId.trim() } })
+        : await upsertCustomerProfile({
+            name: body.customerName!.trim(),
+            phone: body.customerPhone!.trim(),
+            email: body.customerEmail,
+          });
+
+    if (!customer) {
+      return NextResponse.json(
+        { error: "Cliente nao encontrado. Faca login novamente." },
+        { status: 400 },
+      );
+    }
+
     const appointment = await createAppointment({
       service,
       barber,
       date: body.date!.trim(),
       time: body.time!.trim(),
-      customerName: body.customerName!.trim(),
-      customerPhone: body.customerPhone!.trim(),
+      customerId: customer.id,
+      customerName: customer.name,
+      customerPhone: customer.phone,
+      customerEmail: customer.email ?? undefined,
+      preferSilent: body.preferSilent,
       notes: body.notes,
     });
 

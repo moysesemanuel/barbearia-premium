@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { BackToTopButton } from "@/components/shared/back-to-top-button";
 
 export const metadata: Metadata = {
   title: "Prime Cut Studio",
@@ -14,7 +15,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR">
-      <body>{children}</body>
+      <body>
+        {children}
+        <BackToTopButton />
+      </body>
     </html>
   );
 }

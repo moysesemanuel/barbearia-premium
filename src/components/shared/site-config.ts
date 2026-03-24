@@ -177,9 +177,13 @@ export function writeSiteConfig(config: SiteConfig) {
   window.dispatchEvent(new CustomEvent(SITE_CONFIG_UPDATED_EVENT));
 }
 
-export function getDisplayStats(config: SiteConfig) {
+export function getDisplayStats(config: SiteConfig, averageRatingValue?: string) {
   return config.stats.map((item, index) =>
-    index === 3 ? { ...item, value: `+${config.barbers.length}` } : item,
+    index === 1
+      ? { ...item, value: averageRatingValue ?? item.value }
+      : index === 3
+        ? { ...item, value: `+${config.barbers.length}` }
+        : item,
   );
 }
 

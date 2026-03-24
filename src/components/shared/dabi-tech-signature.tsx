@@ -17,7 +17,7 @@ export function DaBiTechSignature({
 }: DaBiTechSignatureProps) {
   return (
     <div className={containerClassName}>
-      <p className={labelClassName}>Criado por DaBi Tech - Digital Solutions</p>
+      <p className={labelClassName}>Criado por DaBi Tech - Digital Solutions - Todos os direitos reservados</p>
       <a
         className={linkClassName}
         href={DABI_TECH_CONTACT_URL}
