@@ -235,6 +235,12 @@
     background: rgba(239, 112, 83, 0.1);
   }
 
+  .notificationCloseButton:hover {
+    transform: translateY(-2px);
+    background: rgba(195, 154, 92, 0.12);
+    border-color: rgba(195, 154, 92, 0.28);
+  }
+
   .sidebarNav a:hover {
     background: rgba(245, 239, 230, 0.08);
   }
@@ -1040,6 +1046,71 @@
   gap: 6px;
 }
 
+.notificationStack {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 55;
+  display: grid;
+  gap: 14px;
+  width: min(360px, calc(100vw - 32px));
+}
+
+.notificationCard {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border-radius: 24px;
+  border: 1px solid rgba(195, 154, 92, 0.22);
+  background:
+    linear-gradient(180deg, rgba(30, 22, 18, 0.98) 0%, rgba(20, 14, 11, 0.96) 100%);
+  box-shadow: 0 22px 48px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(12px);
+}
+
+.notificationCard strong {
+  color: #f5efe6;
+  font-size: 1.05rem;
+}
+
+.notificationCard p {
+  margin: 0;
+  color: rgba(245, 239, 230, 0.76);
+  line-height: 1.55;
+}
+
+.notificationCardHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.notificationCloseButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(245, 239, 230, 0.1);
+  border-radius: 999px;
+  background: rgba(245, 239, 230, 0.04);
+  color: rgba(245, 239, 230, 0.76);
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    transform 180ms ease,
+    background 180ms ease,
+    border-color 180ms ease;
+}
+
+.notificationActions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .buttonDanger {
   border: 1px solid rgba(239, 112, 83, 0.28);
   background: transparent;
@@ -1069,6 +1140,12 @@
   .adminSidebar {
     border-right: 0;
     border-bottom: 1px solid rgba(245, 239, 230, 0.08);
+  }
+
+  .notificationStack {
+    right: 16px;
+    bottom: 16px;
+    width: min(100%, calc(100vw - 24px));
   }
 }
 
@@ -1105,7 +1182,8 @@
 
   .appointmentActionGroup > *,
   .dialogActions > *,
-  .rescheduleActionRow > * {
+  .rescheduleActionRow > *,
+  .notificationActions > * {
     width: 100%;
   }
 

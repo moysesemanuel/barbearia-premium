@@ -11,6 +11,7 @@ import { DaBiTechSignature } from "@/components/shared/dabi-tech-signature";
 import {
   getDisplayStats,
   LEGACY_BUSINESS_TAG_PREFIX,
+  type PlanItem,
   type LoyaltyRewardItem,
   type LoyaltyTierItem,
   writeSiteConfig,
@@ -120,6 +121,9 @@ type AdminAppointment = {
   barberName: string;
   serviceName: string;
 };
+
+const ADMIN_NOTIFICATIONS_STORAGE_KEY = "prime-cut-admin-browser-notifications";
+const ADMIN_SOUND_ALERTS_STORAGE_KEY = "prime-cut-admin-sound-alerts";
 
 type AvailabilityPayload = {
   slots?: string[];
@@ -452,11 +456,17 @@ export function AdminPage({ section = "overview" }: { section?: AdminSectionView
   const [barberName, setBarberName] = useState("");
   const [barberRole, setBarberRole] = useState("");
   const [statusMessage, setStatusMessage] = useState("Alterações locais ainda não salvas.");
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [soundAlertsEnabled, setSoundAlertsEnabled] = useState(false);
+  const [notificationFeedback, setNotificationFeedback] = useState("");
+  const [newAppointmentAlerts, setNewAppointmentAlerts] = useState<AdminAppointment[]>([]);
   const showcaseImageInputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const serviceImageInputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const newServiceImageInputRef = useRef<HTMLInputElement | null>(null);
   const newServiceDescriptionInputRef = useRef<HTMLTextAreaElement | null>(null);
   const autoDetectedHolidayRef = useRef<string | null>(null);
+  const knownAppointmentIdsRef = useRef<Set<string>>(new Set());
+  const notificationsBootstrappedRef = useRef(false);
   const [isCreateServiceModalOpen, setIsCreateServiceModalOpen] = useState(false);
   const [newServiceDescriptionInvalid, setNewServiceDescriptionInvalid] = useState(false);
   const [newService, setNewService] = useState<ServiceDraft>({
@@ -471,6 +481,67 @@ export function AdminPage({ section = "overview" }: { section?: AdminSectionView
   useEffect(() => {
     setConfig(siteConfigSnapshot);
   }, [siteConfigSnapshot]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const savedSoundPreference =
+      window.localStorage.getItem(ADMIN_SOUND_ALERTS_STORAGE_KEY) === "enabled";
+    setSoundAlertsEnabled(savedSoundPreference);
+
+    if (!("Notification" in window)) {
+      return;
+    }
+
+    const savedPreference =
+      window.localStorage.getItem(ADMIN_NOTIFICATIONS_STORAGE_KEY) === "enabled";
+    setNotificationsEnabled(savedPreference && window.Notification.permission === "granted");
+  }, []);
+
+  function playNewAppointmentSound() {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const AudioContextConstructor =
+      window.AudioContext ||
+      (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+
+    if (!AudioContextConstructor) {
+      return;
+    }
+
+    try {
+      const audioContext = new AudioContextConstructor();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      const currentTime = audioContext.currentTime;
+
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(880, currentTime);
+      oscillator.frequency.exponentialRampToValueAtTime(660, currentTime + 0.18);
+
+      gainNode.gain.setValueAtTime(0.0001, currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.16, currentTime + 0.02);
+      gainNode.gain.exponentialRampToValueAtTime(0.0001, currentTime + 0.28);
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+
+      oscillator.start(currentTime);
+      oscillator.stop(currentTime + 0.3);
+
+      window.setTimeout(() => {
+        void audioContext.close().catch(() => {
+          // noop
+        });
+      }, 450);
+    } catch {
+      // noop: fallback silencioso
+    }
+  }
 
   useEffect(() => {
     let active = true;
@@ -527,6 +598,146 @@ export function AdminPage({ section = "overview" }: { section?: AdminSectionView
     };
   }, [appointmentsDate, appointmentsRefreshToken]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    let active = true;
+
+    async function pollNewAppointments() {
+      try {
+        const response = await fetch("/api/appointments", {
+          cache: "no-store",
+        });
+        const payload = (await response.json()) as {
+          appointments?: AdminAppointment[];
+          error?: string;
+        };
+
+        if (!response.ok) {
+          throw new Error(payload.error ?? "Nao foi possivel verificar novos agendamentos.");
+        }
+
+        if (!active) {
+          return;
+        }
+
+        const allAppointments = payload.appointments ?? [];
+        const knownIds = knownAppointmentIdsRef.current;
+
+        if (!notificationsBootstrappedRef.current) {
+          allAppointments.forEach((appointment) => knownIds.add(appointment.id));
+          notificationsBootstrappedRef.current = true;
+          return;
+        }
+
+        const incomingAppointments = allAppointments.filter(
+          (appointment) => appointment.status === "SCHEDULED" && !knownIds.has(appointment.id),
+        );
+
+        if (incomingAppointments.length > 0) {
+          setNewAppointmentAlerts((current) => {
+            const existingIds = new Set(current.map((item) => item.id));
+            return [
+              ...incomingAppointments.filter((item) => !existingIds.has(item.id)),
+              ...current,
+            ];
+          });
+
+          if (soundAlertsEnabled) {
+            playNewAppointmentSound();
+          }
+
+          if (
+            incomingAppointments.some(
+              (appointment) => appointment.startsAt.slice(0, 10) === appointmentsDate,
+            )
+          ) {
+            setAppointmentsRefreshToken((current) => current + 1);
+          }
+
+          if (notificationsEnabled && window.Notification.permission === "granted") {
+            incomingAppointments.forEach((appointment) => {
+              const notification = new window.Notification("Novo agendamento recebido", {
+                body: `${appointment.customerName} agendou ${appointment.serviceName} com ${appointment.barberName}.`,
+              });
+
+              notification.onclick = () => {
+                window.focus();
+              };
+            });
+          }
+        }
+
+        allAppointments.forEach((appointment) => knownIds.add(appointment.id));
+      } catch {
+        // noop: polling silencioso
+      }
+    }
+
+    void pollNewAppointments();
+    const intervalId = window.setInterval(() => {
+      void pollNewAppointments();
+    }, 30000);
+
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+    };
+  }, [appointmentsDate, notificationsEnabled, soundAlertsEnabled]);
+
+  async function enableBrowserNotifications() {
+    if (typeof window === "undefined" || !("Notification" in window)) {
+      setNotificationFeedback("Este navegador não suporta notificações.");
+      return;
+    }
+
+    if (window.Notification.permission === "granted") {
+      window.localStorage.setItem(ADMIN_NOTIFICATIONS_STORAGE_KEY, "enabled");
+      setNotificationsEnabled(true);
+      setNotificationFeedback("Alertas do navegador já estão ativos.");
+      return;
+    }
+
+    const permission = await window.Notification.requestPermission();
+
+    if (permission === "granted") {
+      window.localStorage.setItem(ADMIN_NOTIFICATIONS_STORAGE_KEY, "enabled");
+      setNotificationsEnabled(true);
+      setNotificationFeedback("Alertas ativados para novos agendamentos.");
+      return;
+    }
+
+    setNotificationFeedback("Permissão de notificação não concedida.");
+  }
+
+  function toggleSoundAlerts() {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const nextValue = !soundAlertsEnabled;
+    window.localStorage.setItem(
+      ADMIN_SOUND_ALERTS_STORAGE_KEY,
+      nextValue ? "enabled" : "disabled",
+    );
+    setSoundAlertsEnabled(nextValue);
+    setNotificationFeedback(
+      nextValue
+        ? "Som ativado para novos agendamentos."
+        : "Som desativado para novos agendamentos.",
+    );
+
+    if (nextValue) {
+      playNewAppointmentSound();
+    }
+  }
+
+  function dismissAppointmentAlert(appointmentId: string) {
+    setNewAppointmentAlerts((current) => current.filter((item) => item.id !== appointmentId));
+  }
+
   function setBusinessField<K extends "businessName" | "businessTag" | "headline" | "heroDescription" | "whatsapp" | "address" | "addressNumber" | "city" | "neighborhood" | "zipCode">(
     field: K,
     value: string,
@@ -540,6 +751,36 @@ export function AdminPage({ section = "overview" }: { section?: AdminSectionView
       stats: current.stats.map((item, itemIndex) =>
         itemIndex === index ? { ...item, [field]: value } : item,
       ),
+    }));
+  }
+
+  function updatePlan(index: number, field: keyof PlanItem, value: string) {
+    setConfig((current) => ({
+      ...current,
+      plans: current.plans.map((plan, itemIndex) =>
+        itemIndex === index ? { ...plan, [field]: value } : plan,
+      ),
+    }));
+  }
+
+  function addPlan() {
+    setConfig((current) => ({
+      ...current,
+      plans: [
+        ...current.plans,
+        {
+          name: "",
+          summary: "",
+          price: "",
+        },
+      ],
+    }));
+  }
+
+  function removePlan(index: number) {
+    setConfig((current) => ({
+      ...current,
+      plans: current.plans.filter((_, itemIndex) => itemIndex !== index),
     }));
   }
 
@@ -1241,6 +1482,8 @@ export function AdminPage({ section = "overview" }: { section?: AdminSectionView
     async function loadManualSlots() {
       setManualLoadingSlots(true);
       setManualMessage("");
+      setManualSlots([]);
+      setManualTime("");
 
       try {
         const params = new URLSearchParams({
@@ -1292,7 +1535,7 @@ export function AdminPage({ section = "overview" }: { section?: AdminSectionView
     return () => {
       active = false;
     };
-  }, [manualBarber, manualDate, manualService]);
+  }, [appointmentsRefreshToken, manualBarber, manualDate, manualService]);
 
   function openAppointmentWhatsapp(appointment: AdminAppointment) {
     const url = buildWhatsappUrl(
@@ -1337,7 +1580,9 @@ export function AdminPage({ section = "overview" }: { section?: AdminSectionView
           item.id === appointment.id ? updatedAppointment : item,
         ),
       );
+      setAppointmentsRefreshToken((current) => current + 1);
       setStatusMessage("Agendamento confirmado e mensagem aberta no WhatsApp.");
+      dismissAppointmentAlert(appointment.id);
       openAppointmentWhatsapp(updatedAppointment);
     } catch (error) {
       setStatusMessage(
@@ -1377,8 +1622,10 @@ export function AdminPage({ section = "overview" }: { section?: AdminSectionView
           item.id === appointment.id ? updatedAppointment : item,
         ),
       );
+      setAppointmentsRefreshToken((current) => current + 1);
       setStatusMessage("Agendamento cancelado e mensagem aberta no WhatsApp.");
       setCancelingAppointment(null);
+      dismissAppointmentAlert(appointment.id);
       openAppointmentCancellationWhatsapp(updatedAppointment);
     } catch (error) {
       setStatusMessage(
@@ -1622,6 +1869,16 @@ export function AdminPage({ section = "overview" }: { section?: AdminSectionView
               <AdminButton variant="secondary" type="button" onClick={openPublicSite}>
                 Ver site público
               </AdminButton>
+              <AdminButton variant="secondary" type="button" onClick={toggleSoundAlerts}>
+                {soundAlertsEnabled ? "Som ativo" : "Ativar som"}
+              </AdminButton>
+              <AdminButton
+                variant="secondary"
+                type="button"
+                onClick={() => void enableBrowserNotifications()}
+              >
+                {notificationsEnabled ? "Alertas ativos" : "Ativar alertas"}
+              </AdminButton>
               {showSaveAction ? (
                 <AdminButton variant="primary" type="button" onClick={() => void saveChanges()}>
                   {savingSync ? "Salvando..." : "Salvar alterações"}
@@ -1629,6 +1886,10 @@ export function AdminPage({ section = "overview" }: { section?: AdminSectionView
               ) : null}
             </div>
           </section>
+
+          {notificationFeedback ? (
+            <p className={styles.inlineStatusMessage}>{notificationFeedback}</p>
+          ) : null}
 
           <section className={styles.summaryMetricsGrid}>
             {displayStats.map((item) => (
@@ -1802,6 +2063,70 @@ export function AdminPage({ section = "overview" }: { section?: AdminSectionView
                   <li>Datas bloqueadas e indisponibilidade da agenda</li>
                 </ul>
               </aside>
+            </section>
+
+            <section className={styles.contentCard}>
+              <div className={styles.contentCardHeader}>
+                <p className={styles.sectionEyebrow}>Clube Prime</p>
+                <h2>Planos do clube</h2>
+                <p>
+                  Edite os planos exibidos na home e na aba de assinaturas do agendamento.
+                </p>
+              </div>
+
+              <div className={styles.servicesEditorList}>
+                {config.plans.map((plan, index) => (
+                  <div className={styles.serviceEditorCard} key={`${plan.name}-${index}`}>
+                    <div className={styles.galleryCard}>
+                      <div className={styles.galleryCardBody}>
+                        <strong>Plano #{index + 1}</strong>
+                        <span>{plan.name || "Sem nome"}</span>
+                      </div>
+                    </div>
+
+                    <div className={styles.serviceEditorContent}>
+                      <div className={styles.serviceEditorFields}>
+                        <label className={styles.serviceField}>
+                          <span>Nome do plano</span>
+                          <input
+                            className={styles.serviceFieldInput}
+                            value={plan.name}
+                            onChange={(event) => updatePlan(index, "name", event.target.value)}
+                          />
+                        </label>
+                        <label className={styles.serviceField}>
+                          <span>Preço</span>
+                          <input
+                            className={styles.serviceFieldInput}
+                            value={plan.price}
+                            onChange={(event) => updatePlan(index, "price", event.target.value)}
+                          />
+                        </label>
+                        <label className={`${styles.serviceField} ${styles.serviceFieldDescription}`}>
+                          <span>Resumo</span>
+                          <textarea
+                            className={styles.serviceFieldInput}
+                            value={plan.summary}
+                            onChange={(event) => updatePlan(index, "summary", event.target.value)}
+                          />
+                        </label>
+                      </div>
+
+                      <AdminButton
+                        variant="danger"
+                        type="button"
+                        onClick={() => removePlan(index)}
+                      >
+                        Remover plano
+                      </AdminButton>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <AdminButton variant="primary" type="button" onClick={addPlan}>
+                Adicionar plano
+              </AdminButton>
             </section>
 
             <section className={styles.contentCard}>
@@ -2664,6 +2989,55 @@ export function AdminPage({ section = "overview" }: { section?: AdminSectionView
               </AdminButton>
             </div>
           </div>
+        </div>
+      ) : null}
+
+      {newAppointmentAlerts.length > 0 ? (
+        <div className={styles.notificationStack}>
+          {newAppointmentAlerts.map((appointment) => (
+            <article className={styles.notificationCard} key={appointment.id}>
+              <div className={styles.notificationCardHeader}>
+                <span className={styles.sectionEyebrow}>Novo agendamento</span>
+                <button
+                  className={styles.notificationCloseButton}
+                  onClick={() => dismissAppointmentAlert(appointment.id)}
+                  type="button"
+                  aria-label="Dispensar notificação"
+                >
+                  ×
+                </button>
+              </div>
+              <strong>{appointment.customerName}</strong>
+              <p>
+                {appointment.serviceName} com {appointment.barberName}
+              </p>
+              <p>
+                {formatDateToPtBr(appointment.startsAt.slice(0, 10))} às{" "}
+                {formatAppointmentTime(appointment.startsAt)}
+              </p>
+              <div className={styles.notificationActions}>
+                <AdminButton
+                  variant="success"
+                  type="button"
+                  disabled={updatingAppointmentId === appointment.id}
+                  onClick={() => void confirmAndOpenWhatsapp(appointment)}
+                >
+                  Confirmar
+                </AdminButton>
+                <AdminButton
+                  variant="secondary"
+                  type="button"
+                  onClick={() => {
+                    setAppointmentsDate(appointment.startsAt.slice(0, 10));
+                    setAppointmentsRefreshToken((current) => current + 1);
+                    dismissAppointmentAlert(appointment.id);
+                  }}
+                >
+                  Ver agenda
+                </AdminButton>
+              </div>
+            </article>
+          ))}
         </div>
       ) : null}
 
