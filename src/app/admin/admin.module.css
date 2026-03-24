@@ -551,6 +551,19 @@
   gap: 12px;
 }
 
+.serviceField {
+  display: grid;
+  gap: 8px;
+}
+
+.serviceField span {
+  color: rgba(245, 239, 230, 0.72);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
 .serviceFieldInput {
   width: 100%;
   border: 1px solid rgba(245, 239, 230, 0.12);
@@ -563,6 +576,9 @@
 
 .serviceFieldDescription {
   grid-column: 1 / -1;
+}
+
+.serviceFieldDescription textarea {
   min-height: 110px;
   resize: vertical;
 }
@@ -601,6 +617,13 @@
   display: grid;
   gap: 10px;
   padding: 16px;
+}
+
+.loyaltyTierSwatch {
+  width: 100%;
+  height: 42px;
+  border-radius: 14px;
+  border: 1px solid rgba(245, 239, 230, 0.12);
 }
 
 .stackedList {

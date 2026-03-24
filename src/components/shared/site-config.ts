@@ -45,6 +45,19 @@ export type ClosedDateItem = {
   reason: string;
 };
 
+export type LoyaltyRewardItem = {
+  points: number;
+  title: string;
+  description: string;
+};
+
+export type LoyaltyTierItem = {
+  name: string;
+  minPoints: number;
+  maxPoints: number | null;
+  accent: string;
+};
+
 export type SiteConfig = {
   businessName: string;
   businessTag: string;
@@ -62,6 +75,8 @@ export type SiteConfig = {
   barbers: BarberItem[];
   stats: { value: string; label: string }[];
   testimonials: { name: string; quote: string }[];
+  loyaltyTiers: LoyaltyTierItem[];
+  loyaltyRewards: LoyaltyRewardItem[];
   availableTimes: string[];
   closedDates: ClosedDateItem[];
   ignoredHolidayDates: string[];
@@ -93,6 +108,34 @@ export const defaultSiteConfig: SiteConfig = {
   })),
   stats: stats.map((item) => ({ ...item })),
   testimonials: testimonials.map((item) => ({ ...item })),
+  loyaltyTiers: [
+    { name: "Bronze", minPoints: 0, maxPoints: 99, accent: "#b3835a" },
+    { name: "Silver", minPoints: 100, maxPoints: 249, accent: "#b8c0cc" },
+    { name: "Gold", minPoints: 250, maxPoints: 499, accent: "#d6aa4d" },
+    { name: "Black", minPoints: 500, maxPoints: null, accent: "#1f1712" },
+  ],
+  loyaltyRewards: [
+    {
+      points: 50,
+      title: "Finalização premium",
+      description: "Troque seus pontos por uma finalização especial no atendimento.",
+    },
+    {
+      points: 100,
+      title: "Upgrade de barba",
+      description: "Inclua toalha quente e acabamento reforçado sem custo extra.",
+    },
+    {
+      points: 180,
+      title: "Desconto em pacote",
+      description: "Use os pontos para reduzir o valor de um pacote ou assinatura.",
+    },
+    {
+      points: 300,
+      title: "Serviço bônus",
+      description: "Resgate um benefício maior para a próxima visita no studio.",
+    },
+  ],
   availableTimes: [...availableTimes],
   closedDates: [
     { date: "2026-03-30", reason: "Treinamento interno" },
@@ -150,6 +193,8 @@ export function readSiteConfig(): SiteConfig {
       barbers: parsed.barbers ?? defaultSiteConfig.barbers,
       stats: parsed.stats ?? defaultSiteConfig.stats,
       testimonials: parsed.testimonials ?? defaultSiteConfig.testimonials,
+      loyaltyTiers: parsed.loyaltyTiers ?? defaultSiteConfig.loyaltyTiers,
+      loyaltyRewards: parsed.loyaltyRewards ?? defaultSiteConfig.loyaltyRewards,
       availableTimes: parsed.availableTimes ?? defaultSiteConfig.availableTimes,
       closedDates: parsed.closedDates ?? defaultSiteConfig.closedDates,
       ignoredHolidayDates: parsed.ignoredHolidayDates ?? defaultSiteConfig.ignoredHolidayDates,

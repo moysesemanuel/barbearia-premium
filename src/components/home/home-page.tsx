@@ -5,6 +5,11 @@ import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import bookingStyles from "./home-booking.module.css";
 import {
+  BOOKING_CART_EVENT,
+  PRODUCT_CART_EVENT,
+  getTotalCartCount,
+} from "./cart-storage";
+import {
   CUSTOMER_SESSION_EVENT,
   type CustomerSession,
   readCustomerSession,
@@ -153,6 +158,7 @@ export function Header({
   const [authPassword, setAuthPassword] = useState("");
   const [authError, setAuthError] = useState("");
   const [isSubmittingAuth, setIsSubmittingAuth] = useState(false);
+  const [cartCount, setCartCount] = useState(0);
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -165,6 +171,23 @@ export function Header({
 
     return () => {
       window.removeEventListener("hashchange", syncHash);
+    };
+  }, []);
+
+  useEffect(() => {
+    function syncCartCount() {
+      setCartCount(getTotalCartCount());
+    }
+
+    syncCartCount();
+    window.addEventListener(BOOKING_CART_EVENT, syncCartCount);
+    window.addEventListener(PRODUCT_CART_EVENT, syncCartCount);
+    window.addEventListener("storage", syncCartCount);
+
+    return () => {
+      window.removeEventListener(BOOKING_CART_EVENT, syncCartCount);
+      window.removeEventListener(PRODUCT_CART_EVENT, syncCartCount);
+      window.removeEventListener("storage", syncCartCount);
     };
   }, []);
 
@@ -279,6 +302,26 @@ export function Header({
         ))}
       </nav>
         <div className={styles.headerActions}>
+          <Link
+            className={styles.cartButton}
+            href="/agendamento/carrinho"
+            aria-label={`Carrinho com ${cartCount} item${cartCount === 1 ? "" : "s"}`}
+            title="Carrinho"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M3 5.25h2.17l1.24 6.2a2.25 2.25 0 0 0 2.2 1.8h7.83a2.25 2.25 0 0 0 2.2-1.8l1.06-5.3H7.12"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <circle cx="9.25" cy="18.25" r="1.4" fill="currentColor" />
+              <circle cx="17.25" cy="18.25" r="1.4" fill="currentColor" />
+            </svg>
+            {cartCount > 0 ? <span className={styles.cartBadge}>{cartCount}</span> : null}
+          </Link>
           {profileHref ? (
             <div className={styles.profileMenu} ref={profileMenuRef}>
               <button
@@ -304,10 +347,14 @@ export function Header({
                         <strong>{profileName}</strong>
                         <span>{profileSubtitle}</span>
                       </div>
-                      <div className={styles.profileMeta}>
+                      <Link
+                        className={styles.profileMetaLink}
+                        href="/fidelidade"
+                        onClick={() => setIsProfileMenuOpen(false)}
+                      >
                         <span>Fidelidade</span>
                         <strong>{profilePoints ?? 0} pts</strong>
-                      </div>
+                      </Link>
                       {profileRole === "ADMIN" ? (
                         <Link
                           className={styles.profileAdminButton}

@@ -1,12 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
   readCustomerSession,
   type CustomerSession,
   writeCustomerSession,
 } from "./customer-session";
+import { readBookingCart, writeBookingCart } from "./cart-storage";
 import bookingStyles from "./home-booking.module.css";
 import layoutStyles from "./home-layout.module.css";
 import sectionStyles from "./home-sections.module.css";
@@ -21,7 +21,6 @@ const styles = {
 };
 
 const BOOKABLE_DAYS_AHEAD = 10;
-const BOOKING_CART_STORAGE_KEY = "prime-cut-booking-cart";
 
 type AuthMode = "login" | "register";
 
@@ -34,20 +33,6 @@ type AvailabilityResponse = {
     barberName: string;
   } | null;
   error?: string;
-};
-
-type CartItem = {
-  id: string;
-  serviceName: string;
-  barberName: string;
-  barberImage: string;
-  date: string;
-  time: string;
-  endTime: string;
-  price: string;
-  duration: string;
-  preferSilent: boolean;
-  notes: string;
 };
 
 function getTodayDateKey() {
@@ -108,27 +93,6 @@ function getBarberImage(name: string) {
   return imagesByBarber[name] ?? "/img/espaco-masculino-interior-de-barbearia-moderna-gerado-por-ia_866663-5580.avif";
 }
 
-function readBookingCart() {
-  if (typeof window === "undefined") {
-    return [] as CartItem[];
-  }
-
-  try {
-    const raw = window.localStorage.getItem(BOOKING_CART_STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as CartItem[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeBookingCart(items: CartItem[]) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.localStorage.setItem(BOOKING_CART_STORAGE_KEY, JSON.stringify(items));
-}
-
 type SelectionState = {
   service: ServiceItem;
   date: string;
@@ -157,8 +121,6 @@ export function ServiceBookingFlow({ config }: { config: SiteConfig }) {
   const [authPassword, setAuthPassword] = useState("");
   const [preferSilent, setPreferSilent] = useState(false);
   const [notes, setNotes] = useState("");
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
-
   const bookableDates = useMemo(() => getBookableDates(), []);
   const selectedServiceName = selection?.service.name ?? "";
   const selectedBarberName = selection?.barberName ?? "";
@@ -166,7 +128,6 @@ export function ServiceBookingFlow({ config }: { config: SiteConfig }) {
 
   useEffect(() => {
     setCustomerSession(readCustomerSession());
-    setCartItems(readBookingCart());
   }, []);
 
   useEffect(() => {
@@ -380,28 +341,40 @@ export function ServiceBookingFlow({ config }: { config: SiteConfig }) {
       return;
     }
 
-    setCartItems((current) => {
-      const nextItems = [
-        ...current,
-        {
-          id: `${selection.service.name}-${selection.barberName}-${selection.date}-${selection.time}`,
-          serviceName: selection.service.name,
-          barberName: selection.barberName,
-          barberImage: getBarberImage(selection.barberName),
-          date: selection.date,
-          time: selection.time,
-          endTime: getEndTime(selection.time, selection.service.duration),
-          price: selection.service.price,
-          duration: selection.service.duration,
-          preferSilent,
-          notes,
-        },
-      ].filter(
-        (item, index, array) => array.findIndex((entry) => entry.id === item.id) === index,
-      );
-      writeBookingCart(nextItems);
-      return nextItems;
-    });
+    const currentItems = readBookingCart<{
+      id: string;
+      serviceName: string;
+      barberName: string;
+      barberImage: string;
+      date: string;
+      time: string;
+      endTime: string;
+      price: string;
+      duration: string;
+      preferSilent: boolean;
+      notes: string;
+    }>();
+
+    const nextItems = [
+      ...currentItems,
+      {
+        id: `${selection.service.name}-${selection.barberName}-${selection.date}-${selection.time}`,
+        serviceName: selection.service.name,
+        barberName: selection.barberName,
+        barberImage: getBarberImage(selection.barberName),
+        date: selection.date,
+        time: selection.time,
+        endTime: getEndTime(selection.time, selection.service.duration),
+        price: selection.service.price,
+        duration: selection.service.duration,
+        preferSilent,
+        notes,
+      },
+    ].filter(
+      (item, index, array) => array.findIndex((entry) => entry.id === item.id) === index,
+    );
+
+    writeBookingCart(nextItems);
     setBookingFeedback({
       type: "success",
       message: "Servico adicionado ao carrinho. Voce pode incluir outro atendimento antes de confirmar.",
@@ -421,13 +394,6 @@ export function ServiceBookingFlow({ config }: { config: SiteConfig }) {
           <span className={styles.sectionEyebrow}>Agendamento online</span>
           <h2>Escolha seu serviço e monte o agendamento etapa por etapa.</h2>
         </div>
-        {cartItems.length > 0 ? (
-          <div className={styles.topBarActions}>
-            <Link className={styles.surfaceSecondaryButton} href="/agendamento/carrinho">
-              Ver carrinho ({cartItems.length})
-            </Link>
-          </div>
-        ) : null}
       </div>
 
       {bookingFeedback ? (
@@ -435,25 +401,6 @@ export function ServiceBookingFlow({ config }: { config: SiteConfig }) {
           className={`${styles.feedback} ${bookingFeedback.type === "success" ? styles.feedbackSuccess : styles.feedbackError}`}
         >
           {bookingFeedback.message}
-        </div>
-      ) : null}
-
-      {cartItems.length > 0 ? (
-        <div className={styles.cartCard}>
-          <strong>Carrinho de serviços</strong>
-          <div className={styles.cartList}>
-            {cartItems.map((item) => (
-              <div className={styles.cartItem} key={item.id}>
-                <strong>{item.serviceName}</strong>
-                <span>
-                  {formatDateLabel(item.date)} · {item.time} - {item.endTime}
-                </span>
-                <span>
-                  {item.barberName} · {item.price}
-                </span>
-              </div>
-            ))}
-          </div>
         </div>
       ) : null}
 

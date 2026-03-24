@@ -5,6 +5,7 @@
 }
 
 .heroShell {
+  padding-top: 128px;
   background:
     radial-gradient(circle at top, rgba(195, 154, 92, 0.2), transparent 32%),
     linear-gradient(180deg, #201712 0%, #120e0b 100%);

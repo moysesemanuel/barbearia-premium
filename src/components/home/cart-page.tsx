@@ -4,13 +4,13 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import cartStyles from "./cart-page.module.css";
 import { FooterSection, Header } from "./home-page";
+import { readBookingCart, readProductCart, writeBookingCart, writeProductCart } from "./cart-storage";
+import { products } from "./store-data";
 import { useSiteConfig } from "./use-site-config";
 
 const styles = cartStyles;
 
-const BOOKING_CART_STORAGE_KEY = "prime-cut-booking-cart";
-
-type CartItem = {
+type BookingCartItem = {
   id: string;
   serviceName: string;
   barberName: string;
@@ -23,27 +23,6 @@ type CartItem = {
   preferSilent: boolean;
   notes: string;
 };
-
-function readBookingCart() {
-  if (typeof window === "undefined") {
-    return [] as CartItem[];
-  }
-
-  try {
-    const raw = window.localStorage.getItem(BOOKING_CART_STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as CartItem[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeBookingCart(items: CartItem[]) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.localStorage.setItem(BOOKING_CART_STORAGE_KEY, JSON.stringify(items));
-}
 
 function formatDateLabel(date: string) {
   return new Intl.DateTimeFormat("pt-BR", {
@@ -60,18 +39,27 @@ function parsePriceToNumber(price: string) {
 
 export function CartPage() {
   const config = useSiteConfig();
-  const [items, setItems] = useState<CartItem[]>(() => readBookingCart());
+  const [items, setItems] = useState<BookingCartItem[]>(() => readBookingCart<BookingCartItem>());
+  const [productIds, setProductIds] = useState<string[]>(() => readProductCart());
+
+  const selectedProducts = useMemo(
+    () => products.filter((product) => productIds.includes(product.id)),
+    [productIds],
+  );
 
   const total = useMemo(
     () =>
-      items.reduce((sum, item) => sum + parsePriceToNumber(item.price), 0).toLocaleString(
+      (
+        items.reduce((sum, item) => sum + parsePriceToNumber(item.price), 0) +
+        selectedProducts.reduce((sum, item) => sum + parsePriceToNumber(item.price), 0)
+      ).toLocaleString(
         "pt-BR",
         {
           style: "currency",
           currency: "BRL",
         },
       ),
-    [items],
+    [items, selectedProducts],
   );
 
   function removeItem(id: string) {
@@ -82,9 +70,19 @@ export function CartPage() {
     });
   }
 
+  function removeProduct(productId: string) {
+    setProductIds((current) => {
+      const nextItems = current.filter((item) => item !== productId);
+      writeProductCart(nextItems);
+      return nextItems;
+    });
+  }
+
   function clearCart() {
     writeBookingCart([]);
+    writeProductCart([]);
     setItems([]);
+    setProductIds([]);
   }
 
   return (
@@ -101,7 +99,7 @@ export function CartPage() {
             </p>
           </div>
 
-          {items.length === 0 ? (
+          {items.length === 0 && selectedProducts.length === 0 ? (
             <div className={styles.emptyCard}>
               <strong>Carrinho vazio</strong>
               <p>
@@ -141,13 +139,35 @@ export function CartPage() {
                     </button>
                   </article>
                 ))}
+                {selectedProducts.map((product) => (
+                  <article className={styles.cartItem} key={product.id}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img className={styles.cartImage} src={product.image} alt={product.name} />
+                    <div className={styles.cartBody}>
+                      <strong>{product.name}</strong>
+                      <span>{product.description}</span>
+                      <div className={styles.cartMeta}>
+                        <span>{product.price}</span>
+                        <span>Produto</span>
+                        <span>{product.stock} em estoque</span>
+                      </div>
+                    </div>
+                    <button
+                      className={styles.removeButton}
+                      onClick={() => removeProduct(product.id)}
+                      type="button"
+                    >
+                      Remover
+                    </button>
+                  </article>
+                ))}
               </div>
 
               <aside className={styles.summaryCard}>
                 <strong>Resumo</strong>
                 <div className={styles.summaryRow}>
-                  <span>Serviços</span>
-                  <strong>{items.length}</strong>
+                  <span>Itens</span>
+                  <strong>{items.length + selectedProducts.length}</strong>
                 </div>
                 <div className={styles.summaryRow}>
                   <span>Total estimado</span>

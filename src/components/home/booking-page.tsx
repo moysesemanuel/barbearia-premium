@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import bookingPageStyles from "./booking-page.module.css";
 import {
@@ -12,7 +13,10 @@ import contactStyles from "./home-contact.module.css";
 import layoutStyles from "./home-layout.module.css";
 import sectionStyles from "./home-sections.module.css";
 import { FooterSection, Header } from "./home-page";
+import { fetchLoyalty, type LoyaltyResponse } from "./loyalty";
 import { ServiceBookingFlow } from "./service-booking-flow";
+import { readProductCart, writeProductCart } from "./cart-storage";
+import { products } from "./store-data";
 import { useSiteConfig } from "./use-site-config";
 import { buildWhatsappUrl } from "@/components/shared/whatsapp";
 import { formatWhatsappDisplay } from "@/components/shared/whatsapp";
@@ -25,7 +29,6 @@ const styles = {
   ...bookingPageStyles,
 };
 
-const PRODUCT_CART_STORAGE_KEY = "prime-cut-product-cart";
 const REVIEW_STORAGE_KEY = "prime-cut-customer-reviews";
 
 const tabItems = [
@@ -37,33 +40,6 @@ const tabItems = [
   "Assinaturas",
   "Avaliações",
 ] as const;
-
-const products = [
-  {
-    id: "pomada-matte",
-    name: "Pomada matte",
-    description: "Fixação natural com acabamento seco para uso diário.",
-    price: "R$ 49",
-    stock: 12,
-    image: "/img/um-cliente-a-cortar-o-cabelo-num-barbeiro_1303-20861.avif",
-  },
-  {
-    id: "balm-barba",
-    name: "Balm para barba",
-    description: "Controle de volume, hidratação e alinhamento dos fios.",
-    price: "R$ 38",
-    stock: 8,
-    image: "/img/homem-bonito-na-barbearia-barbeando-a-barba_1303-26258.avif",
-  },
-  {
-    id: "oleo-nutritivo",
-    name: "Óleo nutritivo",
-    description: "Brilho controlado e proteção para cabelo e barba.",
-    price: "R$ 44",
-    stock: 5,
-    image: "/img/hidratacao-no-cabelo-2.jpg",
-  },
-];
 
 const packages = [
   {
@@ -89,13 +65,6 @@ const packages = [
 ];
 
 type TabItem = (typeof tabItems)[number];
-
-type LoyaltyResponse = {
-  points: number;
-  completedAppointments: number;
-  nextRewardIn: number;
-  error?: string;
-};
 
 type ReviewItem = {
   name: string;
@@ -125,27 +94,6 @@ function getBarberImage(name: string) {
   );
 }
 
-function readProductCart() {
-  if (typeof window === "undefined") {
-    return [] as string[];
-  }
-
-  try {
-    const raw = window.localStorage.getItem(PRODUCT_CART_STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as string[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeProductCart(items: string[]) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.localStorage.setItem(PRODUCT_CART_STORAGE_KEY, JSON.stringify(items));
-}
-
 function readCustomerReviews() {
   if (typeof window === "undefined") {
     return [] as ReviewItem[];
@@ -172,7 +120,6 @@ export function BookingPage() {
   const [activeTab, setActiveTab] = useState<TabItem>("Serviços");
   const [customerSession, setCustomerSession] = useState<CustomerSession | null>(null);
   const [loyalty, setLoyalty] = useState<LoyaltyResponse | null>(null);
-  const [loyaltyMessage, setLoyaltyMessage] = useState("");
   const [productCart, setProductCart] = useState<string[]>([]);
   const [customerReviews, setCustomerReviews] = useState<ReviewItem[]>([]);
   const [googleReviews, setGoogleReviews] = useState<ReviewItem[]>([]);
@@ -229,7 +176,6 @@ export function BookingPage() {
   useEffect(() => {
     if (!customerSession) {
       setLoyalty(null);
-      setLoyaltyMessage("Faça login para acompanhar seus pontos de fidelidade.");
       return;
     }
 
@@ -238,26 +184,13 @@ export function BookingPage() {
 
     async function loadLoyalty() {
       try {
-        const response = await fetch(
-          `/api/customers/loyalty?customerId=${encodeURIComponent(customerId)}`,
-          { cache: "no-store" },
-        );
-        const payload = (await response.json()) as LoyaltyResponse;
-
-        if (!response.ok) {
-          throw new Error(payload.error ?? "Nao foi possivel consultar sua fidelidade.");
-        }
-
+        const payload = await fetchLoyalty(customerId);
         if (active) {
           setLoyalty(payload);
-          setLoyaltyMessage("");
         }
-      } catch (error) {
+      } catch {
         if (active) {
           setLoyalty(null);
-          setLoyaltyMessage(
-            error instanceof Error ? error.message : "Nao foi possivel consultar sua fidelidade.",
-          );
         }
       }
     }
@@ -344,20 +277,22 @@ export function BookingPage() {
     if (activeTab === "Fidelidade") {
       return (
         <div className={styles.loyaltyPanel}>
+          {config.loyaltyRewards.map((reward) => (
+            <article className={styles.loyaltyCard} key={`${reward.points}-${reward.title}`}>
+              <span className={styles.eyebrow}>{reward.points} pts</span>
+              <strong>{reward.title}</strong>
+              <p>{reward.description}</p>
+            </article>
+          ))}
           <article className={styles.loyaltyCard}>
-            <span className={styles.eyebrow}>Seus pontos</span>
+            <span className={styles.eyebrow}>Seu progresso</span>
             <strong>{loyalty?.points ?? 0} pts</strong>
             <p>
-              {loyaltyMessage ||
-                `Você já acumulou ${loyalty?.completedAppointments ?? 0} serviços válidos na sua fidelidade.`}
+              Acompanhe nível, metas e histórico completo na sua página de fidelidade.
             </p>
-          </article>
-          <article className={styles.loyaltyCard}>
-            <span className={styles.eyebrow}>Próxima meta</span>
-            <strong>{loyalty?.nextRewardIn ?? 100} pts restantes</strong>
-            <p>
-              A cada serviço concluído, você soma 10 pontos para trocar por benefícios no studio.
-            </p>
+            <Link className={styles.primaryActionButton} href="/fidelidade">
+              Abrir fidelidade
+            </Link>
           </article>
         </div>
       );
@@ -571,9 +506,9 @@ export function BookingPage() {
         "Conheça os profissionais, seus perfis de atendimento e escolha quem combina mais com o seu estilo.",
     },
     Fidelidade: {
-      title: "Acompanhe sua fidelidade.",
+      title: "Vantagens da fidelidade do studio.",
       description:
-        "Seus pontos aumentam a cada serviço concluído e ajudam a liberar vantagens futuras no atendimento.",
+        "Veja o que você pode resgatar com seus pontos e abra sua página de fidelidade para acompanhar nível e progresso.",
     },
     Produtos: {
       title: "Produtos disponíveis para compra.",

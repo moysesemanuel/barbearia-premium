@@ -9,6 +9,8 @@ import { DaBiTechSignature } from "@/components/shared/dabi-tech-signature";
 import {
   getDisplayStats,
   LEGACY_BUSINESS_TAG_PREFIX,
+  type LoyaltyRewardItem,
+  type LoyaltyTierItem,
   writeSiteConfig,
 } from "@/components/shared/site-config";
 import { buildWhatsappUrl } from "@/components/shared/whatsapp";
@@ -533,6 +535,95 @@ export function AdminPage() {
       stats: current.stats.map((item, itemIndex) =>
         itemIndex === index ? { ...item, [field]: value } : item,
       ),
+    }));
+  }
+
+  function updateLoyaltyReward(
+    index: number,
+    field: keyof LoyaltyRewardItem,
+    value: string,
+  ) {
+    setConfig((current) => ({
+      ...current,
+      loyaltyRewards: current.loyaltyRewards.map((item, itemIndex) =>
+        itemIndex === index
+          ? {
+              ...item,
+              [field]: field === "points" ? Number(value.replace(/[^\d]/g, "") || "0") : value,
+            }
+          : item,
+      ),
+    }));
+  }
+
+  function addLoyaltyReward() {
+    setConfig((current) => ({
+      ...current,
+      loyaltyRewards: [
+        ...current.loyaltyRewards,
+        {
+          points: 0,
+          title: "",
+          description: "",
+        },
+      ],
+    }));
+  }
+
+  function removeLoyaltyReward(index: number) {
+    setConfig((current) => ({
+      ...current,
+      loyaltyRewards: current.loyaltyRewards.filter((_, itemIndex) => itemIndex !== index),
+    }));
+  }
+
+  function updateLoyaltyTier(
+    index: number,
+    field: keyof LoyaltyTierItem,
+    value: string,
+  ) {
+    setConfig((current) => ({
+      ...current,
+      loyaltyTiers: current.loyaltyTiers.map((item, itemIndex) =>
+        itemIndex === index
+          ? {
+              ...item,
+              [field]:
+                field === "minPoints"
+                  ? Number(value.replace(/[^\d]/g, "") || "0")
+                  : field === "maxPoints"
+                    ? value.trim()
+                      ? Number(value.replace(/[^\d]/g, "") || "0")
+                      : null
+                    : value,
+            }
+          : item,
+      ),
+    }));
+  }
+
+  function addLoyaltyTier() {
+    const nextMinPoints =
+      Math.max(...config.loyaltyTiers.map((tier) => tier.maxPoints ?? tier.minPoints), 0) + 1;
+
+    setConfig((current) => ({
+      ...current,
+      loyaltyTiers: [
+        ...current.loyaltyTiers,
+        {
+          name: "",
+          minPoints: nextMinPoints,
+          maxPoints: null,
+          accent: "#c39a5c",
+        },
+      ],
+    }));
+  }
+
+  function removeLoyaltyTier(index: number) {
+    setConfig((current) => ({
+      ...current,
+      loyaltyTiers: current.loyaltyTiers.filter((_, itemIndex) => itemIndex !== index),
     }));
   }
 
@@ -1413,17 +1504,33 @@ export function AdminPage() {
     }
   }
 
-  function getAppointmentsForBarber(barberName: string) {
-    return appointments
-      .filter(
-        (appointment) =>
-          appointment.barberName === barberName && appointment.status !== "CANCELLED",
-      )
-      .sort(
-        (left, right) =>
-          new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime(),
-      );
-  }
+  const barberAppointments = useMemo(
+    () =>
+      config.barbers
+        .map((barber) => ({
+          barber,
+          appointments: appointments
+            .filter(
+              (appointment) =>
+                appointment.barberName === barber.name && appointment.status !== "CANCELLED",
+            )
+            .sort(
+              (left, right) =>
+                new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime(),
+            ),
+        }))
+        .filter((item) => item.appointments.length > 0),
+    [appointments, config.barbers],
+  );
+
+  const appointmentStatusCounts = useMemo(
+    () => ({
+      scheduled: appointments.filter((appointment) => appointment.status === "SCHEDULED").length,
+      confirmed: appointments.filter((appointment) => appointment.status === "CONFIRMED").length,
+      cancelled: appointments.filter((appointment) => appointment.status === "CANCELLED").length,
+    }),
+    [appointments],
+  );
 
   return (
     <div className={styles.adminPage}>
@@ -1437,6 +1544,7 @@ export function AdminPage() {
           <nav className={styles.sidebarNav}>
             <a href="#visao-geral">Visão geral</a>
             <a href="#informacoes">Informações principais</a>
+            <a href="#fidelidade">Fidelidade</a>
             <a href="#servicos">Serviços e valores</a>
             <a href="#imagens">Imagens</a>
             <a href="#barbeiros">Barbeiros</a>
@@ -1673,6 +1781,159 @@ export function AdminPage() {
               </p>
             </section>
 
+            <section className={styles.contentCard} id="fidelidade">
+              <div className={styles.contentCardHeader}>
+                <p className={styles.sectionEyebrow}>Fidelidade</p>
+                <h2>Vantagens e recompensas</h2>
+                <p>
+                  Edite as metas e benefícios exibidos na aba de fidelidade e na página do cliente.
+                </p>
+              </div>
+
+              <div className={styles.contentCardHeader}>
+                <p className={styles.sectionEyebrow}>Níveis</p>
+                <h2>Níveis da fidelidade</h2>
+                <p>
+                  Ajuste nome, faixas de pontos e cor de destaque de cada nível do programa.
+                </p>
+              </div>
+
+              <div className={styles.servicesEditorList}>
+                {config.loyaltyTiers.map((tier, index) => (
+                  <div className={styles.serviceEditorCard} key={`${tier.name}-${index}`}>
+                    <div className={styles.galleryCard}>
+                      <div className={styles.galleryCardBody}>
+                        <strong>Nível #{index + 1}</strong>
+                        <span>{tier.name || "Sem nome"}</span>
+                        <div
+                          className={styles.loyaltyTierSwatch}
+                          style={{ backgroundColor: tier.accent }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className={styles.serviceEditorContent}>
+                      <div className={styles.serviceEditorFields}>
+                        <label className={styles.serviceField}>
+                          <span>Nome do nível</span>
+                          <input
+                            className={styles.serviceFieldInput}
+                            value={tier.name}
+                            onChange={(event) =>
+                              updateLoyaltyTier(index, "name", event.target.value)
+                            }
+                          />
+                        </label>
+                        <label className={styles.serviceField}>
+                          <span>Pontos iniciais</span>
+                          <input
+                            className={styles.serviceFieldInput}
+                            value={tier.minPoints}
+                            onChange={(event) =>
+                              updateLoyaltyTier(index, "minPoints", event.target.value)
+                            }
+                          />
+                        </label>
+                        <label className={styles.serviceField}>
+                          <span>Pontos finais</span>
+                          <input
+                            className={styles.serviceFieldInput}
+                            value={tier.maxPoints ?? ""}
+                            placeholder="Deixe vazio para nível máximo"
+                            onChange={(event) =>
+                              updateLoyaltyTier(index, "maxPoints", event.target.value)
+                            }
+                          />
+                        </label>
+                        <label className={styles.serviceField}>
+                          <span>Cor</span>
+                          <input
+                            className={styles.serviceFieldInput}
+                            value={tier.accent}
+                            onChange={(event) =>
+                              updateLoyaltyTier(index, "accent", event.target.value)
+                            }
+                          />
+                        </label>
+                      </div>
+
+                      <AdminButton
+                        variant="danger"
+                        type="button"
+                        onClick={() => removeLoyaltyTier(index)}
+                      >
+                        Remover nível
+                      </AdminButton>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <AdminButton variant="primary" type="button" onClick={addLoyaltyTier}>
+                Adicionar nível
+              </AdminButton>
+
+              <div className={styles.servicesEditorList}>
+                {config.loyaltyRewards.map((reward, index) => (
+                  <div className={styles.serviceEditorCard} key={`${reward.points}-${index}`}>
+                    <div className={styles.galleryCard}>
+                      <div className={styles.galleryCardBody}>
+                        <strong>Meta #{index + 1}</strong>
+                        <span>{reward.points} pts</span>
+                      </div>
+                    </div>
+
+                    <div className={styles.serviceEditorContent}>
+                      <div className={styles.serviceEditorFields}>
+                        <label className={styles.serviceField}>
+                          <span>Pontos</span>
+                          <input
+                            className={styles.serviceFieldInput}
+                            value={reward.points}
+                            onChange={(event) =>
+                              updateLoyaltyReward(index, "points", event.target.value)
+                            }
+                          />
+                        </label>
+                        <label className={styles.serviceField}>
+                          <span>Título da recompensa</span>
+                          <input
+                            className={styles.serviceFieldInput}
+                            value={reward.title}
+                            onChange={(event) =>
+                              updateLoyaltyReward(index, "title", event.target.value)
+                            }
+                          />
+                        </label>
+                        <label className={`${styles.serviceField} ${styles.serviceFieldDescription}`}>
+                          <span>Descrição</span>
+                          <textarea
+                            className={styles.serviceFieldInput}
+                            value={reward.description}
+                            onChange={(event) =>
+                              updateLoyaltyReward(index, "description", event.target.value)
+                            }
+                          />
+                        </label>
+                      </div>
+
+                      <AdminButton
+                        variant="danger"
+                        type="button"
+                        onClick={() => removeLoyaltyReward(index)}
+                      >
+                        Remover recompensa
+                      </AdminButton>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <AdminButton variant="primary" type="button" onClick={addLoyaltyReward}>
+                Adicionar recompensa
+              </AdminButton>
+            </section>
+
             <section className={styles.contentCard} id="servicos">
               <div className={styles.contentCardHeader}>
                 <p className={styles.sectionEyebrow}>Catálogo</p>
@@ -1717,31 +1978,46 @@ export function AdminPage() {
                     </div>
                     <div className={styles.serviceEditorContent}>
                       <div className={styles.serviceEditorFields}>
-                        <input
-                          className={styles.serviceFieldInput}
-                          value={service.name}
-                          onChange={(event) => updateService(index, "name", event.target.value)}
-                        />
-                        <input
-                          className={styles.serviceFieldInput}
-                          value={service.price}
-                          onChange={(event) => updateService(index, "price", event.target.value)}
-                        />
-                        <input
-                          className={styles.serviceFieldInput}
-                          value={service.duration}
-                          onChange={(event) => updateService(index, "duration", event.target.value)}
-                        />
-                        <input
-                          className={styles.serviceFieldInput}
-                          value={service.membership}
-                          onChange={(event) => updateService(index, "membership", event.target.value)}
-                        />
-                        <textarea
-                          className={`${styles.serviceFieldInput} ${styles.serviceFieldDescription}`}
-                          value={service.description}
-                          onChange={(event) => updateService(index, "description", event.target.value)}
-                        />
+                        <label className={styles.serviceField}>
+                          <span>Nome do serviço</span>
+                          <input
+                            className={styles.serviceFieldInput}
+                            value={service.name}
+                            onChange={(event) => updateService(index, "name", event.target.value)}
+                          />
+                        </label>
+                        <label className={styles.serviceField}>
+                          <span>Valor</span>
+                          <input
+                            className={styles.serviceFieldInput}
+                            value={service.price}
+                            onChange={(event) => updateService(index, "price", event.target.value)}
+                          />
+                        </label>
+                        <label className={styles.serviceField}>
+                          <span>Duração</span>
+                          <input
+                            className={styles.serviceFieldInput}
+                            value={service.duration}
+                            onChange={(event) => updateService(index, "duration", event.target.value)}
+                          />
+                        </label>
+                        <label className={styles.serviceField}>
+                          <span>Clube / assinatura</span>
+                          <input
+                            className={styles.serviceFieldInput}
+                            value={service.membership}
+                            onChange={(event) => updateService(index, "membership", event.target.value)}
+                          />
+                        </label>
+                        <label className={`${styles.serviceField} ${styles.serviceFieldDescription}`}>
+                          <span>Descrição</span>
+                          <textarea
+                            className={styles.serviceFieldInput}
+                            value={service.description}
+                            onChange={(event) => updateService(index, "description", event.target.value)}
+                          />
+                        </label>
                       </div>
                       <AdminButton
                         variant="danger"
@@ -2057,17 +2333,17 @@ export function AdminPage() {
                   </p>
                 ) : null}
 
-                <div className={styles.barberAgendaGrid}>
-                  {config.barbers.map((barber) => (
-                    <article className={styles.barberAgendaColumn} key={barber.name}>
-                      <div className={styles.barberAgendaHeader}>
-                        <strong>{barber.name}</strong>
-                        <span>{formatDateToPtBr(appointmentsDate)}</span>
-                      </div>
+                {barberAppointments.length > 0 ? (
+                  <div className={styles.barberAgendaGrid}>
+                    {barberAppointments.map(({ barber, appointments: barberAppointmentItems }) => (
+                      <article className={styles.barberAgendaColumn} key={barber.name}>
+                        <div className={styles.barberAgendaHeader}>
+                          <strong>{barber.name}</strong>
+                          <span>{formatDateToPtBr(appointmentsDate)}</span>
+                        </div>
 
-                      <div className={styles.barberAppointmentList}>
-                        {getAppointmentsForBarber(barber.name).length > 0 ? (
-                          getAppointmentsForBarber(barber.name).map((appointment) => {
+                        <div className={styles.barberAppointmentList}>
+                          {barberAppointmentItems.map((appointment) => {
                             const durationMinutes =
                               serviceDurationMap.get(appointment.serviceName) ?? 30;
 
@@ -2088,14 +2364,14 @@ export function AdminPage() {
                                 </div>
                               </div>
                             );
-                          })
-                        ) : (
-                          <p className={styles.emptyPanel}>Nenhum agendamento para este barbeiro.</p>
-                        )}
-                      </div>
-                    </article>
-                  ))}
-                </div>
+                          })}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <p className={styles.emptyPanel}>Nenhum agendamento encontrado para esta data.</p>
+                )}
               </aside>
             </section>
 
@@ -2118,8 +2394,16 @@ export function AdminPage() {
                     />
                   </div>
                   <div className={styles.inlineMetricCard}>
-                    <span className={styles.sidebarMetaLabel}>Agendamentos encontrados</span>
-                    <strong>{appointments.length}</strong>
+                    <span className={styles.sidebarMetaLabel}>Agendados / remarcados</span>
+                    <strong>{appointmentStatusCounts.scheduled}</strong>
+                  </div>
+                  <div className={styles.inlineMetricCard}>
+                    <span className={styles.sidebarMetaLabel}>Confirmados</span>
+                    <strong>{appointmentStatusCounts.confirmed}</strong>
+                  </div>
+                  <div className={styles.inlineMetricCard}>
+                    <span className={styles.sidebarMetaLabel}>Cancelados</span>
+                    <strong>{appointmentStatusCounts.cancelled}</strong>
                   </div>
                 </div>
 
