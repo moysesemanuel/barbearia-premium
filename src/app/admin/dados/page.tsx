@@ -5,6 +5,8 @@ import { DaBiTechSignature } from "@/components/shared/dabi-tech-signature";
 import { ensureBookingSeedData } from "@/lib/booking";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
 function formatCurrency(valueInCents: number) {
   return (valueInCents / 100).toLocaleString("pt-BR", {
     style: "currency",

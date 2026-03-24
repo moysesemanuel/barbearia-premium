@@ -71,6 +71,7 @@ Exemplo:
 
 ```bash
 DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/DATABASE?sslmode=require"
+DIRECT_URL="postgresql://USER:PASSWORD@HOST:5432/DATABASE?sslmode=require"
 ```
 
 4. Gere o banco:
@@ -139,6 +140,7 @@ Arquivo base: [.env.example](/Users/moysescosta/Projects/personal_projects/.env.
 
 ```bash
 DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/DATABASE?sslmode=require"
+DIRECT_URL="postgresql://USER:PASSWORD@HOST:5432/DATABASE?sslmode=require"
 GOOGLE_PLACES_API_KEY=""
 GOOGLE_PLACE_ID=""
 ```
