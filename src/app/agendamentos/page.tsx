@@ -1,4 +1,4 @@
-import { CustomerAppointmentsPage } from "@/components/home/customer-appointments-page";
+import { CustomerAppointmentsPage } from "@/components/projects/barbershop/customer-appointments-page";
 
 export default function AgendamentosPage() {
   return <CustomerAppointmentsPage />;

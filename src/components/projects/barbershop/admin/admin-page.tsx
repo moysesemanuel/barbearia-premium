@@ -4,9 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import styles from "@/app/admin/admin.module.css";
-import { AdminButton } from "@/components/admin/admin-button";
-import { useSiteConfig } from "@/components/home/use-site-config";
-import { readCustomerReviews } from "@/components/home/reviews-storage";
+import { AdminButton } from "@/components/projects/barbershop/admin/admin-button";
+import { useSiteConfig } from "@/components/projects/barbershop/use-site-config";
+import { readCustomerReviews } from "@/components/projects/barbershop/reviews-storage";
 import { DaBiTechSignature } from "@/components/shared/dabi-tech-signature";
 import {
   getDisplayStats,
@@ -1121,7 +1121,7 @@ export function AdminPage({ section = "overview" }: { section?: AdminSectionView
   }
 
   function openPublicSite() {
-    window.open("/", "_blank", "noopener,noreferrer");
+    window.open("/portfolio/barbearia", "_blank", "noopener,noreferrer");
   }
 
   function openShowcaseImagePicker(index: number) {

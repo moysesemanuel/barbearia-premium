@@ -129,6 +129,7 @@ function getBusinessMapQuery(config: SiteConfig) {
 export function Header({
   config,
   homeLinks = false,
+  homeBasePath = "/",
   profileHref,
   profileTitle = "Perfil do cliente",
   profileName,
@@ -139,6 +140,7 @@ export function Header({
 }: {
   config: SiteConfig;
   homeLinks?: boolean;
+  homeBasePath?: string;
   profileHref?: string;
   profileTitle?: string;
   profileName?: string;
@@ -149,7 +151,9 @@ export function Header({
 }) {
   const { showToast } = useToast();
   const pathname = usePathname();
-  const homePrefix = homeLinks ? "/#" : "#";
+  const normalizedHomeBasePath =
+    homeBasePath !== "/" ? homeBasePath.replace(/\/$/, "") : homeBasePath;
+  const homePrefix = homeLinks ? `${normalizedHomeBasePath}#` : "#";
   const [currentHash, setCurrentHash] = useState("");
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -279,7 +283,12 @@ export function Header({
   }
 
   const navItems = [
-    { label: "O studio", href: homeLinks ? "/" : "#studio", sectionHash: "#studio", routePrefix: undefined },
+    {
+      label: "O studio",
+      href: homeLinks ? normalizedHomeBasePath : "#studio",
+      sectionHash: "#studio",
+      routePrefix: undefined,
+    },
     { label: "Clube", href: `${homePrefix}clube`, sectionHash: "#clube", routePrefix: undefined },
     { label: "Serviços", href: `${homePrefix}servicos`, sectionHash: "#servicos", routePrefix: undefined },
     { label: "Agendamento", href: "/agendamento", routePrefix: "/agendamento", sectionHash: undefined },
@@ -291,8 +300,12 @@ export function Header({
       return pathname.startsWith(item.routePrefix);
     }
 
-    if (pathname !== "/") {
+    if (pathname !== normalizedHomeBasePath) {
       return false;
+    }
+
+    if (item.sectionHash === "#studio") {
+      return currentHash === "" || currentHash === "#studio";
     }
 
     return currentHash === item.sectionHash;
@@ -1161,7 +1174,7 @@ export function FooterSection() {
   );
 }
 
-export function HomePage() {
+export function HomePage({ homeBasePath = "/" }: { homeBasePath?: string }) {
   const config = useSiteConfig();
   const [nextAvailable, setNextAvailable] = useState<NextAvailableSlot>(null);
   const [customerSession, setCustomerSession] = useState<CustomerSession | null>(null);
@@ -1321,6 +1334,7 @@ export function HomePage() {
       <section className={styles.heroShell}>
         <Header
           config={config}
+          homeBasePath={homeBasePath}
           profileHref="/agendamento#acesso-cliente"
           profileTitle={customerSession ? `Perfil de ${customerSession.name}` : "Acesso do cliente"}
           profileName={customerSession?.name}

@@ -1,4 +1,4 @@
-import { CartPage } from "@/components/home/cart-page";
+import { CartPage } from "@/components/projects/barbershop/cart-page";
 
 export default function Page() {
   return <CartPage />;

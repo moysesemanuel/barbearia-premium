@@ -6,7 +6,7 @@ import {
   showcaseImages,
   stats,
   testimonials,
-} from "@/components/home/data";
+} from "@/components/projects/barbershop/data";
 
 export const SITE_CONFIG_STORAGE_KEY = "prime-cut-site-config";
 export const SITE_CONFIG_UPDATED_EVENT = "prime-cut-site-config-updated";

@@ -102,9 +102,9 @@
 }
 
 .adminHeader {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
   gap: 24px;
   margin-bottom: 28px;
 }
@@ -135,10 +135,12 @@
 }
 
 .adminHeaderActions {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  align-items: flex-start;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: max-content;
+  justify-content: end;
+  align-items: center;
+  gap: 10px;
 }
 
 .buttonPrimary,
@@ -524,9 +526,9 @@
 
 .inlineFormRow {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(220px, 1.2fr) repeat(3, minmax(180px, 1fr));
   gap: 12px;
-  align-items: end;
+  align-items: stretch;
 }
 
 .inlineRowAction {
@@ -535,8 +537,10 @@
 
 .inlineMetricCard {
   display: grid;
+  align-content: start;
   gap: 6px;
-  min-width: 220px;
+  min-width: 0;
+  min-height: 100%;
   padding: 14px 18px;
   border-radius: 20px;
   border: 1px solid rgba(245, 239, 230, 0.08);
@@ -1156,7 +1160,6 @@
   }
 
   .adminHeader,
-  .adminHeaderActions,
   .formFieldsGrid,
   .inlineFormRow,
   .serviceEditorCard,
@@ -1169,6 +1172,13 @@
 
   .adminHeader {
     display: grid;
+  }
+
+  .adminHeaderActions {
+    display: grid;
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
+    justify-content: stretch;
   }
 
   .adminFooterInner {

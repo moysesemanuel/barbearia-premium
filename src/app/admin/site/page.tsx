@@ -1,4 +1,4 @@
-import { AdminPage } from "@/components/admin/admin-page";
+import { AdminPage } from "@/components/projects/barbershop/admin/admin-page";
 
 export default function Page() {
   return <AdminPage section="site" />;
