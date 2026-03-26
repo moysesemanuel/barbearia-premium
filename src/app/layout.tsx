@@ -7,6 +7,11 @@ export const metadata: Metadata = {
   title: "Prime Cut Studio",
   description:
     "Barbearia premium com atendimento por agendamento, serviços de corte e barba e presença digital profissional.",
+  icons: {
+    icon: "/logo-icon.svg",
+    shortcut: "/logo-icon.svg",
+    apple: "/logo-icon.svg",
+  },
 };
 
 export default function RootLayout({
