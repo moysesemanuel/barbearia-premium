@@ -1,24 +1,27 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import styles from "./portfolio-home-page.module.css";
+
+const INSTAGRAM_URL = "https://instagram.com/";
 
 const services = [
   {
-    title: "Tecnologia e estrutura digital",
+    title: "Sites institucionais com direção visual",
     description:
-      "Apoio técnico para organizar operações, ajustar fluxos e sustentar a presença digital da empresa com mais consistência.",
+      "Páginas comerciais com narrativa clara, presença de marca e estrutura preparada para crescimento.",
   },
   {
-    title: "Criação de sites e programas",
+    title: "Sistemas internos e produtos web",
     description:
-      "Desenvolvimento de sites, sistemas internos e programas sob medida para atender necessidades comerciais e operacionais.",
+      "Painéis administrativos, fluxos operacionais e aplicações web pensadas para uso real, com foco em clareza, manutenção e evolução.",
   },
   {
-    title: "Suporte Moodle e plataformas",
+    title: "Base técnica e continuidade",
     description:
-      "Suporte técnico para Moodle e outras plataformas, com manutenção, ajustes, evolução e acompanhamento de uso.",
+      "Frontend, backend, banco de dados, autenticação e deploy organizados para garantir estabilidade e evolução contínua.",
   },
 ] as const;
 
@@ -27,165 +30,371 @@ const projects = [
     eyebrow: "Cliente",
     title: "Plataforma para barbearia premium",
     description:
-      "Projeto com home institucional, vitrine de serviços, login de cliente, agenda online, fidelidade, carrinho, avaliações, gestão de estoque e backoffice dividido por áreas de operação.",
+      "Projeto com presença institucional forte e operação completa por trás, reunindo agenda, fidelidade, catálogo, carrinho e backoffice integrado.",
     meta: ["Agendamento online", "Área do cliente", "Backoffice", "Gestão de estoque"],
     href: "/portfolio/barbearia",
     imageSrc: "/img/localhost_3001_admin_agenda.png",
-    imageAlt: "Tela do backoffice da barbearia",
+    imageAlt: "Tela do painel administrativo da barbearia",
+    imageWidth: 3456,
+    imageHeight: 11084,
     scopeTitle: "Escopo entregue",
     scopeDescription:
       "Interface pública, persistência em banco, autenticação, agenda, fidelidade, catálogo de produtos, estoque e rotina administrativa conectada à operação do negócio.",
-    previewPoints: [
-      "Agenda diária por barbeiro",
-      "Bloqueios, encaixes e agendamento manual",
-      "Confirmação, remarcação e cancelamento no painel",
-    ],
   },
   {
     eyebrow: "Produto",
     title: "Sistema de vendas com landing page comercial",
     description:
-      "Projeto conceitual para demonstrar um SaaS de vendas com posicionamento claro, funil comercial, indicadores e apresentação pensada para conversão.",
+      "Conceito de SaaS com página comercial, funil, indicadores e apresentação pensada para reforçar posicionamento e conversão.",
     meta: ["CRM comercial", "Funil de vendas", "Relatórios", "Landing page"],
     href: "/portfolio/sistema-vendas",
     imageSrc: "/img/portfolio-sales-system-preview.svg",
     imageAlt: "Preview da landing page do sistema de vendas",
+    imageWidth: 1200,
+    imageHeight: 720,
     scopeTitle: "Escopo proposto",
     scopeDescription:
       "Aplicação standalone em `projects/sales-system`, com Prisma próprio, cadastros reais, vendas, estoque e financeiro desacoplados da barbearia.",
-    previewPoints: [
-      "Visão do pipeline em tempo real",
-      "Alertas de follow-up e reativação",
-      "Módulos para operação, proposta e fechamento",
-    ],
   },
   {
     eyebrow: "Produto",
     title: "Sistema de chamados com operação cliente e técnico",
     description:
-      "Projeto de help desk com Kanban de tickets, login por perfil, modal operacional de atendimento, comentários, fluxo de status e visão separada para cliente e equipe técnica.",
+      "Help desk com Kanban, fluxo de atendimento, comentários, status e interfaces separadas para cliente e equipe técnica.",
     meta: ["Help desk", "Kanban", "Atendimento", "Portal técnico"],
     href: "/portfolio/sistema-chamados",
     imageSrc: "/img/portfolio-support-tickets-preview.svg",
     imageAlt: "Preview do sistema de chamados",
+    imageWidth: 1400,
+    imageHeight: 900,
     scopeTitle: "Escopo entregue",
     scopeDescription:
       "Aplicação standalone em `separated-repos/support-tickets-app`, com backend próprio, gestão de tickets, fluxo de resposta e interface operacional inspirada em centrais de atendimento.",
-    previewPoints: [
-      "Fila Kanban por etapa do atendimento",
-      "Modal de operação com chat e roteamento",
-      "Perfis distintos para cliente e técnico",
-    ],
   },
 ] as const;
 
+const highlights = [
+  { label: "Entrega", value: "Web + sistema" },
+  { label: "Base", value: "Full Stack" },
+  { label: "Deploy", value: "Pronto para produção (Vercel-ready)" },
+] as const;
+
+function InstagramIcon() {
+  return (
+    <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
+      <rect height="16" rx="4.5" stroke="currentColor" strokeWidth="1.8" width="16" x="4" y="4" />
+      <circle cx="12" cy="12" r="3.6" stroke="currentColor" strokeWidth="1.8" />
+      <circle cx="17.2" cy="6.8" fill="currentColor" r="1.1" />
+    </svg>
+  );
+}
+
 export function PortfolioHomePage() {
-  const [projectPage, setProjectPage] = useState(0);
-  const activeProject = projects[projectPage];
+  const pageRef = useRef<HTMLDivElement | null>(null);
+  const [activeSection, setActiveSection] = useState("#servicos");
+  const [activeProjectIndex, setActiveProjectIndex] = useState(0);
+  const [hasHydrated, setHasHydrated] = useState(false);
+  const [isLoaderVisible, setIsLoaderVisible] = useState(true);
+  const [isPageReady, setIsPageReady] = useState(false);
+  const featuredProject = projects[0];
+  const activeProject = projects[activeProjectIndex];
+
+  useEffect(() => {
+    if (!hasHydrated) {
+      return;
+    }
+
+    const page = pageRef.current;
+
+    if (!page) {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce), (pointer: coarse)");
+
+    if (mediaQuery.matches) {
+      page.style.setProperty("--spotlight-opacity", "0");
+      return;
+    }
+
+    let rafId = 0;
+
+    const updateSpotlight = (event: PointerEvent) => {
+      if (rafId) {
+        window.cancelAnimationFrame(rafId);
+      }
+
+      rafId = window.requestAnimationFrame(() => {
+        page.style.setProperty("--spotlight-x", `${event.clientX}px`);
+        page.style.setProperty("--spotlight-y", `${event.clientY}px`);
+        page.style.setProperty("--spotlight-opacity", "1");
+      });
+    };
+
+    const hideSpotlight = () => {
+      page.style.setProperty("--spotlight-opacity", "0");
+    };
+
+    window.addEventListener("pointermove", updateSpotlight);
+    window.addEventListener("pointerleave", hideSpotlight);
+
+    return () => {
+      if (rafId) {
+        window.cancelAnimationFrame(rafId);
+      }
+
+      window.removeEventListener("pointermove", updateSpotlight);
+      window.removeEventListener("pointerleave", hideSpotlight);
+    };
+  }, [hasHydrated]);
+
+  useEffect(() => {
+    const hydrationTimer = window.setTimeout(() => {
+      setHasHydrated(true);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(hydrationTimer);
+    };
+  }, []);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+    if (mediaQuery.matches) {
+      const immediateTimer = window.setTimeout(() => {
+        setIsLoaderVisible(false);
+        setIsPageReady(true);
+      }, 0);
+
+      return () => {
+        window.clearTimeout(immediateTimer);
+      };
+    }
+
+    const readyTimer = window.setTimeout(() => {
+      setIsPageReady(true);
+    }, 120);
+
+    const hideLoaderTimer = window.setTimeout(() => {
+      setIsLoaderVisible(false);
+    }, 1050);
+
+    return () => {
+      window.clearTimeout(readyTimer);
+      window.clearTimeout(hideLoaderTimer);
+    };
+  }, []);
+
+  useEffect(() => {
+    const syncHash = () => {
+      const nextHash = window.location.hash || "#servicos";
+      setActiveSection(nextHash);
+    };
+
+    syncHash();
+    window.addEventListener("hashchange", syncHash);
+
+    const sections = ["servicos", "projetos", "contato"]
+      .map((id) => document.getElementById(id))
+      .filter((section): section is HTMLElement => Boolean(section));
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visibleEntry = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+
+        if (visibleEntry) {
+          setActiveSection(`#${visibleEntry.target.id}`);
+        }
+      },
+      {
+        rootMargin: "-140px 0px -55% 0px",
+        threshold: [0.2, 0.45, 0.7],
+      },
+    );
+
+    sections.forEach((section) => observer.observe(section));
+
+    return () => {
+      window.removeEventListener("hashchange", syncHash);
+      observer.disconnect();
+    };
+  }, []);
+
+  const handleNavClick = (hash: "#servicos" | "#projetos" | "#contato") => {
+    setActiveSection(hash);
+  };
+
+  const handlePreviousProject = () => {
+    setActiveProjectIndex((current) => (current === 0 ? projects.length - 1 : current - 1));
+  };
+
+  const handleNextProject = () => {
+    setActiveProjectIndex((current) => (current === projects.length - 1 ? 0 : current + 1));
+  };
+
+  if (!hasHydrated) {
+    return (
+      <div className={styles.page}>
+        <div aria-hidden="true" className={styles.loaderOverlay}>
+          <div className={styles.loaderMark}>
+            <span className={styles.loaderLogo} />
+            <span>DaBi Tech</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className={styles.page}>
+    <div className={styles.page} ref={pageRef}>
+      {isLoaderVisible ? (
+        <div aria-hidden="true" className={styles.loaderOverlay}>
+          <div className={styles.loaderMark}>
+            <span className={styles.loaderLogo} />
+            <span>DaBi Tech</span>
+          </div>
+        </div>
+      ) : null}
+      <div className={styles.pageAura} aria-hidden="true" />
+      <div className={styles.mouseGlow} aria-hidden="true" />
+      <aside className={styles.socialRail} aria-label="Redes sociais">
+        <a
+          aria-label="Instagram DaBi Tech"
+          className={styles.socialRailLink}
+          href={INSTAGRAM_URL}
+          rel="noreferrer"
+          target="_blank"
+        >
+          <InstagramIcon />
+        </a>
+      </aside>
+
       <header className={styles.header}>
-        <div className={styles.brand}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-icon.svg" alt="Ícone DaBi Tech" />
+        <a className={styles.brand} href="#">
+          <Image alt="Ícone DaBi Tech" height={48} priority src="/logo-icon.svg" width={48} />
           <div className={styles.brandCopy}>
             <strong>DaBi Tech</strong>
             <span>Digital Solutions</span>
           </div>
-        </div>
+        </a>
 
         <nav className={styles.nav}>
-          <a href="#servicos">Serviços</a>
-          <a href="#projetos">Projetos</a>
-          <a href="#contato">Contato</a>
+          <a
+            className={activeSection === "#servicos" ? styles.navLinkActive : styles.navLink}
+            href="#servicos"
+            onClick={() => handleNavClick("#servicos")}
+          >
+            Serviços
+          </a>
+          <a
+            className={activeSection === "#projetos" ? styles.navLinkActive : styles.navLink}
+            href="#projetos"
+            onClick={() => handleNavClick("#projetos")}
+          >
+            Projetos
+          </a>
+          <a
+            className={activeSection === "#contato" ? styles.navLinkActive : styles.navLink}
+            href="#contato"
+            onClick={() => handleNavClick("#contato")}
+          >
+            Contato
+          </a>
         </nav>
 
-        <Link className={styles.cta} href="#projetos">
-          Ver projetos
-        </Link>
+        <div className={styles.headerActions}>
+          <Link className={styles.secondaryCta} href="#contato">
+            Falar comigo
+          </Link>
+          <Link className={styles.primaryCta} href="#projetos">
+            Ver projetos
+          </Link>
+        </div>
       </header>
 
-      <section className={styles.hero}>
-        <div className={styles.heroContent}>
-          <div className={styles.heroPrimary}>
+      <main className={styles.main}>
+        <section className={isPageReady ? styles.heroEntered : styles.hero}>
+          <div className={styles.heroCopy}>
             <span className={styles.eyebrow}>Portfólio</span>
-            <h1>
-              Sites e sistemas
-              <br />
-              que comunicam
-              <br />
-              valor com clareza.
-            </h1>
-            <p>
-              Desenvolvo experiências digitais com visual consistente, lógica de negócio bem
-              resolvida e estrutura pronta para operar.
+            <h1>Sites e sistemas com presença forte, leitura clara e estrutura pronta para operar.</h1>
+            <p className={styles.heroLead}>
+              Desenvolvo produtos digitais com foco em valor percebido, consistência visual e base
+              técnica sólida para publicar, manter e evoluir.
             </p>
-          </div>
 
-          <div className={styles.metricsBlock}>
-            <div className={styles.metrics}>
-              <article className={styles.metric}>
-                <strong>Web</strong>
-                <span>sites, fluxos comerciais e jornadas de produto</span>
-              </article>
-              <article className={styles.metric}>
-                <strong>Full</strong>
-                <span>frontend, backend, banco, autenticação e deploy</span>
-              </article>
-              <article className={styles.metric}>
-                <strong>Operação</strong>
-                <span>projetos estruturados para uso real e evolução contínua</span>
-              </article>
+            <div className={styles.heroActions}>
+              <Link className={styles.primaryCta} href="#projetos">
+                Explorar portfólio
+              </Link>
+              <a className={styles.secondaryCta} href="#contato">
+                Falar comigo
+              </a>
+            </div>
+
+            <div className={styles.highlightGrid}>
+              {highlights.map((item) => (
+                <article className={styles.highlightCard} key={item.label}>
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                </article>
+              ))}
             </div>
           </div>
-        </div>
 
-        <aside className={styles.heroPanel}>
-          <span className={styles.panelTag}>Projeto em destaque</span>
+          <aside className={styles.heroFeature}>
+            <div className={styles.featureHeader}>
+              <span className={styles.featureTag}>Projeto em destaque</span>
+              <span className={styles.featureIndex}>01</span>
+            </div>
 
-            <div className={styles.projectPreview}>
-              <div className={styles.previewShot}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                src={activeProject.imageSrc}
-                alt={activeProject.imageAlt}
+            <div className={styles.featureImageWrap}>
+              <Image
+                alt={featuredProject.imageAlt}
+                height={featuredProject.imageHeight}
+                priority
+                src={featuredProject.imageSrc}
+                width={featuredProject.imageWidth}
               />
-              </div>
-
-              <div className={styles.previewContent}>
-              <strong>{activeProject.title}</strong>
-              <p>{activeProject.description}</p>
-              <div className={styles.previewPoints}>
-                {activeProject.previewPoints.slice(0, 2).map((item) => (
-                  <span key={item}>{item}</span>
-                ))}
-              </div>
-              </div>
-
-            <div className={styles.stackList}>
-              <span>Next.js</span>
-              <span>React</span>
-              <span>Prisma</span>
             </div>
-          </div>
-        </aside>
-      </section>
 
-      <main className={styles.content}>
-        <section className={styles.sectionCard} id="servicos">
-          <div className={styles.sectionIntro}>
+            <div className={styles.featureBody}>
+              <span className={styles.featureEyebrow}>{featuredProject.eyebrow}</span>
+              <h2>{featuredProject.title}</h2>
+              <p>{featuredProject.description}</p>
+            </div>
+
+            <div className={styles.featureMeta}>
+              {featuredProject.meta.slice(0, 3).map((item) => (
+                <span key={item}>+ {item}</span>
+              ))}
+            </div>
+
+            <Link className={styles.primaryCta} href={featuredProject.href}>
+              Abrir projeto
+            </Link>
+          </aside>
+        </section>
+
+        <section
+          className={isPageReady ? styles.servicesSectionEntered : styles.servicesSection}
+          id="servicos"
+        >
+          <div className={styles.sectionHeading}>
             <span className={styles.eyebrow}>Serviços</span>
-            <h2>Do posicionamento visual à camada operacional.</h2>
+            <h2>Direção visual, interface e operação tratadas como um único produto.</h2>
             <p>
-              O foco é construir produtos claros para o usuário e consistentes para quem opera. A
-              interface vem junto de fluxo, persistência, regras e publicação.
+              Não se trata apenas de estética. É sobre construir um sistema digital que comunica
+              bem, funciona corretamente e continua sustentável após o lançamento.
             </p>
           </div>
 
           <div className={styles.servicesGrid}>
-            {services.map((service) => (
+            {services.map((service, index) => (
               <article className={styles.serviceCard} key={service.title}>
+                <span className={styles.serviceIndex}>{String(index + 1).padStart(2, "0")}</span>
                 <strong>{service.title}</strong>
                 <p>{service.description}</p>
               </article>
@@ -193,106 +402,136 @@ export function PortfolioHomePage() {
           </div>
         </section>
 
-        <section className={styles.sectionCard} id="projetos">
-          <div className={styles.sectionIntro}>
+        <section
+          className={isPageReady ? styles.projectsSectionEntered : styles.projectsSection}
+          id="projetos"
+        >
+          <div className={styles.sectionHeading}>
             <span className={styles.eyebrow}>Projetos</span>
-            <h2>Projetos publicados e prontos para navegação.</h2>
+            <h2>Uma vitrine direta, navegável e com contexto suficiente para cada entrega.</h2>
             <p>
-              Cada entrega aqui combina presença de marca, experiência de uso e estrutura técnica
-              pensada para sustentar operação e crescimento.
+              Cada projeto combina visão de produto, interface publicada e recorte técnico real do
+              que foi desenvolvido.
             </p>
           </div>
 
-          <div className={styles.projectsGrid}>
-            <div className={styles.carouselViewport}>
-              <div
-                className={styles.carouselTrack}
-                style={{ transform: `translateX(-${projectPage * 100}%)` }}
-              >
-                {projects.map((project) => (
-                  <article className={styles.projectSlide} key={project.href}>
-                    <div className={styles.projectCard}>
-                      <div className={styles.projectCopy}>
-                        <span className={styles.eyebrow}>{project.eyebrow}</span>
-                        <h3>{project.title}</h3>
-                        <p>{project.description}</p>
+          <div className={styles.carouselShell}>
+            <article className={styles.projectCard}>
+              <div className={styles.projectVisual}>
+                <Image
+                  alt={activeProject.imageAlt}
+                  height={activeProject.imageHeight}
+                  src={activeProject.imageSrc}
+                  width={activeProject.imageWidth}
+                />
+              </div>
 
-                        <div className={styles.projectMeta}>
-                          {project.meta.map((item) => (
-                            <span key={item}>{item}</span>
-                          ))}
-                        </div>
+              <div className={styles.projectBody}>
+                <div className={styles.projectHeader}>
+                  <div className={styles.projectHeaderTop}>
+                    <span className={styles.projectBadge}>{activeProject.eyebrow}</span>
+                    <span className={styles.projectNumber}>
+                      {String(activeProjectIndex + 1).padStart(2, "0")}
+                    </span>
+                  </div>
+                  <h3>{activeProject.title}</h3>
+                  <p>{activeProject.description}</p>
+                </div>
 
-                        <div className={styles.projectLinks}>
-                          <Link className={styles.cta} href={project.href}>
-                            Abrir projeto completo
-                          </Link>
-                        </div>
-                      </div>
+                <div className={styles.projectMeta}>
+                  {activeProject.meta.map((item) => (
+                    <span key={item}>+ {item}</span>
+                  ))}
+                </div>
 
-                      <div className={styles.projectMedia}>
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={project.imageSrc} alt={project.imageAlt} />
-                        <div className={styles.miniPanel}>
-                          <strong>{project.scopeTitle}</strong>
-                          <p className={styles.noteStrong}>{project.scopeDescription}</p>
-                          <div className={styles.previewPoints}>
-                            {project.previewPoints.map((item) => (
-                              <span key={item}>{item}</span>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </article>
+                <div className={styles.scopeCard}>
+                  <strong>{activeProject.scopeTitle}</strong>
+                  <p>{activeProject.scopeDescription}</p>
+                </div>
+
+                <div className={styles.projectActions}>
+                  <Link className={styles.primaryCta} href={activeProject.href}>
+                    Abrir projeto completo
+                  </Link>
+                </div>
+              </div>
+            </article>
+
+            <div className={styles.carouselFooter}>
+              <div className={styles.carouselControls}>
+                <button
+                  aria-label="Projeto anterior"
+                  className={styles.carouselButton}
+                  onClick={handlePreviousProject}
+                  type="button"
+                >
+                  Anterior
+                </button>
+                <button
+                  aria-label="Próximo projeto"
+                  className={styles.carouselButton}
+                  onClick={handleNextProject}
+                  type="button"
+                >
+                  Próximo
+                </button>
+              </div>
+
+              <div className={styles.carouselDots} role="tablist" aria-label="Projetos do portfólio">
+                {projects.map((project, index) => (
+                  <button
+                    aria-label={`Ir para ${project.title}`}
+                    aria-selected={activeProjectIndex === index}
+                    className={
+                      activeProjectIndex === index ? styles.carouselDotActive : styles.carouselDot
+                    }
+                    key={project.href}
+                    onClick={() => setActiveProjectIndex(index)}
+                    role="tab"
+                    type="button"
+                  />
                 ))}
               </div>
-            </div>
-
-            <div className={styles.carouselDots} role="tablist" aria-label="Projetos do portfólio">
-              {projects.map((project, index) => (
-                <button
-                  aria-label={`Ir para ${project.title}`}
-                  aria-selected={projectPage === index}
-                  className={projectPage === index ? styles.carouselDotActive : styles.carouselDot}
-                  key={project.href}
-                  onClick={() => setProjectPage(index)}
-                  role="tab"
-                  type="button"
-                />
-              ))}
             </div>
           </div>
         </section>
 
-        <section className={styles.sectionCard} id="contato">
-          <div className={styles.sectionIntro}>
+        <section
+          className={isPageReady ? styles.contactSectionEntered : styles.contactSection}
+          id="contato"
+        >
+          <div className={styles.contactCopy}>
             <span className={styles.eyebrow}>Contato</span>
-            <h2>Se fizer sentido para o seu negócio, eu desenvolvo.</h2>
+            <h2>Vamos tirar sua ideia do papel.</h2>
             <p>
-              Posso transformar uma necessidade comercial em site institucional, sistema interno ou
-              produto web com fluxo, conteúdo e operação alinhados ao seu momento.
+              Se fizer sentido para o seu negócio, eu desenvolvo.
+            </p>
+            <p>
+              Transformo sua necessidade em um site institucional, sistema interno ou produto web
+              com visual consistente e operação alinhada ao momento do projeto.
             </p>
           </div>
 
-          <div className={styles.heroActions}>
-            <a className={styles.cta} href="mailto:dabitech.ds@gmail.com">
+          <div className={styles.contactActions}>
+            <a className={styles.primaryCta} href="mailto:dabitech.ds@gmail.com">
               dabitech.ds@gmail.com
             </a>
             <Link
               className={styles.secondaryCta}
               href="https://wa.me/5541920038570"
-              target="_blank"
               rel="noreferrer"
+              target="_blank"
             >
-              Orçamento no whatsapp
+              Orçamento no WhatsApp
             </Link>
           </div>
         </section>
 
-        <footer className={styles.footer}>
-          <span>2026 - DaBi Tech - Digital Solutions</span>
-          <span>Produtos digitais com posicionamento, clareza e execução.</span>
+        <footer className={isPageReady ? styles.footerEntered : styles.footer}>
+          <div className={styles.footerBrand}>
+            <span>DaBi Tech - Digital Solutions</span>
+            <span>Produtos digitais com posicionamento, clareza e execução.</span>
+          </div>
         </footer>
       </main>
     </div>
